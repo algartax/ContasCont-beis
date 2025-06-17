@@ -153,6 +153,122 @@ button {
     color: var(--text-secondary);
 }
 
+/* NOVOS ESTILOS: Campo de busca de conta */
+.search-container {
+    position: relative;
+}
+
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-input-wrapper input {
+    width: 100%;
+    padding: 9px 16px 9px 40px;
+    font-size: 0.875rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    background-color: var(--white);
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+}
+
+.search-input-wrapper input:focus {
+    outline: none;
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.search-input-wrapper input::placeholder {
+    color: var(--gray-400);
+}
+
+.search-input-wrapper .fas.fa-search {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-500);
+    z-index: 2;
+    cursor: pointer;
+    pointer-events: auto;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.search-input-wrapper .fas.fa-search:hover {
+    color: var(--primary-color);
+    background-color: var(--gray-100);
+}
+
+.clear-search {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--gray-500);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    z-index: 2;
+}
+
+.clear-search:hover {
+    background-color: var(--gray-100);
+    color: var(--text-primary);
+}
+
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--white);
+    border: 1px solid var(--gray-200);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background-color var(--transition-fast);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: var(--gray-50);
+}
+
+.suggestion-conta {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 0.8125rem;
+    margin-bottom: 2px;
+}
+
+.suggestion-description {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+/* Select normal */
 .select-wrapper {
     position: relative;
 }
@@ -850,6 +966,20 @@ button {
     .main-content {
         padding: 16px;
     }
+
+    /* Ajustar campo de busca para mobile */
+    .search-container {
+        position: relative;
+    }
+
+    .search-suggestions {
+        position: fixed;
+        top: auto;
+        left: 16px;
+        right: 16px;
+        max-height: 40vh;
+        z-index: 1001;
+    }
 }
 
 @media (max-width: 480px) {
@@ -892,4 +1022,129 @@ button {
 
 .hidden {
     display: none;
+}
+
+/* Modal de Seleção de Contas */
+.account-modal .modal-content {
+    width: 600px;
+    max-width: 95%;
+    max-height: 80vh;
+}
+
+.account-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.account-modal-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.account-search-bar {
+    position: relative;
+    padding: 20px 20px 16px 20px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.account-search-bar i {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-500);
+}
+
+.account-search-bar input {
+    width: 100%;
+    padding: 10px 16px 10px 40px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    background-color: var(--white);
+    transition: all var(--transition-fast);
+}
+
+.account-search-bar input:focus {
+    outline: none;
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.account-search-bar input::placeholder {
+    color: var(--gray-400);
+}
+
+.account-list-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.account-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    max-height: 400px;
+}
+
+.account-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background-color var(--transition-fast);
+}
+
+.account-item:hover {
+    background-color: var(--gray-50);
+}
+
+.account-item:last-child {
+    border-bottom: none;
+}
+
+.account-number {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 0.875rem;
+    margin-bottom: 2px;
+}
+
+.account-description {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.3;
+}
+
+.no-accounts {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 20px;
+    font-style: italic;
+}
+
+/* Scrollbar personalizada para lista de contas */
+.account-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.account-list::-webkit-scrollbar-track {
+    background: var(--gray-100);
+    border-radius: 3px;
+}
+
+.account-list::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 3px;
+}
+
+.account-list::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-500);
 }

@@ -132,7 +132,7 @@
 
                         <div class="card variation-card consolidado">
                             <div class="card-header">
-                                <h3>Consolidado</h3>
+                                <h3>Somado</h3>
                                 <div class="variation-indicator" id="consolidadoVariation">
                                     <span class="variation-value">--</span>
                                 </div>
@@ -189,10 +189,10 @@
                             </div>
                             <div class="select-wrapper compact">
                                 <select id="entityFilter">
-                                    <option value="total">Consolidado Total</option>
+                                    <option value="total">Total</option>
                                     <option value="telecom">Telecom</option>
                                     <option value="vogel">Vogel</option>
-                                    <option value="consolidado">Consolidado</option>
+                                    <option value="consolidado">Somado</option>
                                 </select>
                                 <i class="fas fa-chevron-down"></i>
                             </div>
@@ -262,6 +262,29 @@
         <div class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i>
             <p>Processando dados...</p>
+        </div>
+    </div>
+
+    <!-- Modal de Seleção de Contas -->
+    <div class="modal account-modal" id="accountModal">
+        <div class="modal-content account-modal-content">
+            <div class="modal-header">
+                <h2>Selecionar Conta</h2>
+                <button class="modal-close" id="closeAccountModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body account-modal-body">
+                <div class="account-search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="accountSearch" placeholder="Buscar por número ou descrição da conta...">
+                </div>
+                <div class="account-list-container">
+                    <div id="accountList" class="account-list">
+                        <!-- Lista será preenchida dinamicamente -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

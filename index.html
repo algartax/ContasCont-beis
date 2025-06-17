@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Analytics - Algar</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.41.0/dist/apexcharts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/dist/luxon.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="Logo_Algar.png" alt="Algar Logo" class="logo">
+                <h1>Dashboard Analytics</h1>
+            </div>
+
+            <div class="sidebar-content">
+                <div class="filter-section">
+                    <h2>Filtros</h2>
+                    
+                    <div class="filter-group">
+                        <label for="sheetSelector">Aba</label>
+                        <div class="select-wrapper">
+                            <select id="sheetSelector">
+                                <option value="">Selecione...</option>
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="currentPeriod">Período Atual</label>
+                        <div class="select-wrapper">
+                            <select id="currentPeriod">
+                                <option value="">Selecione...</option>
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="previousPeriod">Período Anterior</label>
+                        <div class="select-wrapper">
+                            <select id="previousPeriod">
+                                <option value="">Selecione...</option>
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <div id="dynamicFilters" class="dynamic-filters"></div>
+                    
+                    <div class="filter-actions">
+                        <button class="btn btn-secondary" id="clearFilters">
+                            <i class="fas fa-eraser"></i>
+                            Limpar Filtros
+                        </button>
+                        <button class="btn btn-primary" id="applyFilters">
+                            <i class="fas fa-check"></i>
+                            Aplicar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="upload-trigger">
+                    <button class="btn btn-outline" id="uploadButton">
+                        <i class="fas fa-file-excel"></i>
+                        Trocar Arquivo
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="content-header">
+                <h1>Análise Comparativa de Variações Financeiras</h1>
+                <span class="date-display" id="dateDisplay">Data de análise: 12/05/2025</span>
+            </header>
+
+            <div class="content-grid">
+                <!-- Cards and Chart Row -->
+                <div class="cards-chart-row">
+                    <!-- Summary Cards -->
+                    <section class="summary-cards">
+                        <div class="card variation-card telecom">
+                            <div class="card-header">
+                                <h3>Telecom</h3>
+                                <div class="variation-indicator" id="telecomVariation">
+                                    <span class="variation-value">--</span>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="value-comparison">
+                                    <div class="value-item">
+                                        <label>Atual</label>
+                                        <span id="telecomCurrent">R$ 0,00</span>
+                                    </div>
+                                    <div class="value-item">
+                                        <label>Anterior</label>
+                                        <span id="telecomPrevious">R$ 0,00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card variation-card vogel">
+                            <div class="card-header">
+                                <h3>Vogel</h3>
+                                <div class="variation-indicator" id="vogelVariation">
+                                    <span class="variation-value">--</span>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="value-comparison">
+                                    <div class="value-item">
+                                        <label>Atual</label>
+                                        <span id="vogelCurrent">R$ 0,00</span>
+                                    </div>
+                                    <div class="value-item">
+                                        <label>Anterior</label>
+                                        <span id="vogelPrevious">R$ 0,00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card variation-card consolidado">
+                            <div class="card-header">
+                                <h3>Consolidado</h3>
+                                <div class="variation-indicator" id="consolidadoVariation">
+                                    <span class="variation-value">--</span>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="value-comparison">
+                                    <div class="value-item">
+                                        <label>Atual</label>
+                                        <span id="consolidadoCurrent">R$ 0,00</span>
+                                    </div>
+                                    <div class="value-item">
+                                        <label>Anterior</label>
+                                        <span id="consolidadoPrevious">R$ 0,00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Chart Section -->
+                    <section class="chart-section">
+                        <div class="chart-container">
+                            <div class="chart-header">
+                                <h3 id="chartTitle">Evolução Mensal</h3>
+                                <div class="chart-actions">
+                                    <div class="chart-toggle">
+                                        <button class="btn btn-secondary active" id="monthlyBtn">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            Mensal
+                                        </button>
+                                        <button class="btn btn-secondary" id="quarterlyBtn">
+                                            <i class="fas fa-calendar"></i>
+                                            Trimestral
+                                        </button>
+                                    </div>
+                                    <button class="btn btn-icon" title="Download" id="downloadChart">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="evolutionChart" class="chart"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Details Table -->
+                <section class="details-section">
+                    <div class="details-header">
+                        <h3>Detalhamento por Conta</h3>
+                        <div class="details-actions">
+                            <div class="search-bar">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="descriptionFilter" placeholder="Filtrar por conta ou descrição...">
+                            </div>
+                            <div class="select-wrapper compact">
+                                <select id="entityFilter">
+                                    <option value="total">Consolidado Total</option>
+                                    <option value="telecom">Telecom</option>
+                                    <option value="vogel">Vogel</option>
+                                    <option value="consolidado">Consolidado</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                            <div class="select-wrapper compact">
+                                <select id="sortFilter">
+                                    <option value="variation_desc">Maior Variação</option>
+                                    <option value="variation_asc">Menor Variação</option>
+                                    <option value="value_desc">Maior Valor Atual</option>
+                                    <option value="value_asc">Menor Valor Atual</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                            <button class="btn btn-icon" title="Exportar para Excel" id="exportTable">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="detailsTable" class="details-table">
+                            <thead>
+                                <tr>
+                                    <th>Conta SAP</th>
+                                    <th>Descrição</th>
+                                    <th>Valor Anterior</th>
+                                    <th>Valor Atual</th>
+                                    <th>Variação</th>
+                                    <th>Var %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Importar Arquivo Excel</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-box">
+                    <div class="upload-icon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <p>Selecione um arquivo Excel para análise - Pode ser encontrado em ALGARTELECOMCONTROLADORIA-TAXTRANSFORMATION/Documentos Compartilhados/General/ANALYTICS/CONTAS CONTÁBEIS/Analytcs.xlsx</p>
+                    <input type="file" id="fileInput" accept=".xlsx" style="display: none;">
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-upload"></i>
+                        Selecionar Arquivo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processando dados...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

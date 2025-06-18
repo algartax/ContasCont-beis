@@ -205,6 +205,9 @@
                                 </select>
                                 <i class="fas fa-chevron-down"></i>
                             </div>
+                            <button class="btn btn-icon" title="Comparações Avançadas" id="openComparisonModal">
+                                <i class="fas fa-balance-scale"></i>
+                            </button>
                             <button class="btn btn-icon" title="Exportar para Excel" id="exportTable">
                                 <i class="fas fa-file-excel"></i>
                             </button>
@@ -246,7 +249,7 @@
                     <div class="upload-icon">
                         <i class="fas fa-file-excel"></i>
                     </div>
-                    <p>Selecione um arquivo Excel para análise - Pode ser encontrado em ALGARTELECOMCONTROLADORIA-TAXTRANSFORMATION/Documentos Compartilhados/General/ANALYTICS/CONTAS CONTÁBEIS/Analytcs.xlsx</p>
+                    <p>Selecione um arquivo Excel para análise</p>
                     <input type="file" id="fileInput" accept=".xlsx" style="display: none;">
                     <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
                         <i class="fas fa-upload"></i>
@@ -282,6 +285,173 @@
                 <div class="account-list-container">
                     <div id="accountList" class="account-list">
                         <!-- Lista será preenchida dinamicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Comparações Avançadas -->
+    <div class="modal comparison-modal" id="comparisonModal">
+        <div class="modal-content comparison-modal-content">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-balance-scale"></i>
+                    Comparações Avançadas - Detalhamento por Conta
+                </h2>
+                <button class="modal-close" id="closeComparisonModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body comparison-modal-body">
+                <!-- Tipo de Comparação -->
+                <div class="comparison-section">
+                    <h3>
+                        <i class="fas fa-cog"></i>
+                        Tipo de Comparação
+                    </h3>
+                    <div class="comparison-type-buttons">
+                        <button class="btn comparison-type-btn active" data-type="mensal">
+                            <i class="fas fa-calendar-day"></i>
+                            Mensal
+                        </button>
+                        <button class="btn comparison-type-btn" data-type="trimestral">
+                            <i class="fas fa-calendar-alt"></i>
+                            Trimestral
+                        </button>
+                        <button class="btn comparison-type-btn" data-type="semestral">
+                            <i class="fas fa-calendar-week"></i>
+                            Semestral
+                        </button>
+                        <button class="btn comparison-type-btn" data-type="anual">
+                            <i class="fas fa-calendar"></i>
+                            Anual
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seleção de Períodos -->
+                <div class="comparison-section">
+                    <h3>
+                        <i class="fas fa-calendar-check"></i>
+                        Períodos para Comparação
+                    </h3>
+                    <div class="period-selection-grid">
+                        <div class="period-group">
+                            <label for="comparisonPeriod1">
+                                <i class="fas fa-calendar-plus"></i>
+                                Período 1
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="comparisonPeriod1">
+                                    <option value="">Selecione o primeiro período...</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="period-group">
+                            <label for="comparisonPeriod2">
+                                <i class="fas fa-calendar-minus"></i>
+                                Período 2
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="comparisonPeriod2">
+                                    <option value="">Selecione o segundo período...</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros de Entidade -->
+                <div class="comparison-section">
+                    <h3>
+                        <i class="fas fa-filter"></i>
+                        Filtros de Visualização
+                    </h3>
+                    <div class="comparison-filters-grid">
+                        <div class="filter-group">
+                            <label for="comparisonEntityFilter">Entidade</label>
+                            <div class="select-wrapper">
+                                <select id="comparisonEntityFilter">
+                                    <option value="total">Total (Todas)</option>
+                                    <option value="telecom">Telecom</option>
+                                    <option value="vogel">Vogel</option>
+                                    <option value="consolidado">Somado</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="comparisonMinVariation">Variação Mínima (%)</label>
+                            <input type="number" id="comparisonMinVariation" placeholder="Ex: 5" step="0.1">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="comparisonMaxResults">Máximo de Resultados</label>
+                            <div class="select-wrapper">
+                                <select id="comparisonMaxResults">
+                                    <option value="50">50 registros</option>
+                                    <option value="100">100 registros</option>
+                                    <option value="250" selected>250 registros</option>
+                                    <option value="500">500 registros</option>
+                                    <option value="all">Todos</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparações Rápidas -->
+                <div class="comparison-section">
+                    <h3>
+                        <i class="fas fa-bolt"></i>
+                        Comparações Rápidas
+                    </h3>
+                    <div class="quick-comparisons">
+                        <button class="btn btn-outline quick-comparison-btn" data-quick="mes-anterior">
+                            <i class="fas fa-arrow-left"></i>
+                            Mês Atual vs Anterior
+                        </button>
+                        <button class="btn btn-outline quick-comparison-btn" data-quick="trimestre-anterior">
+                            <i class="fas fa-step-backward"></i>
+                            Trimestre Atual vs Anterior
+                        </button>
+                        <button class="btn btn-outline quick-comparison-btn" data-quick="mesmo-periodo-ano-passado">
+                            <i class="fas fa-history"></i>
+                            Mesmo Período Ano Passado
+                        </button>
+                        <button class="btn btn-outline quick-comparison-btn" data-quick="trimestre-mesmo-ano-passado">
+                            <i class="fas fa-calendar-times"></i>
+                            Mesmo Trimestre Ano Passado
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="comparison-actions">
+                    <button class="btn btn-secondary" id="clearComparisonBtn">
+                        <i class="fas fa-eraser"></i>
+                        Limpar Seleção
+                    </button>
+                    <button class="btn btn-primary" id="applyComparisonBtn">
+                        <i class="fas fa-check"></i>
+                        Aplicar Comparação
+                    </button>
+                </div>
+
+                <!-- Resumo da Comparação -->
+                <div class="comparison-summary" id="comparisonSummary" style="display: none;">
+                    <h4>
+                        <i class="fas fa-chart-line"></i>
+                        Resumo da Comparação
+                    </h4>
+                    <div class="summary-content" id="summaryContent">
+                        <!-- Conteúdo será preenchido dinamicamente -->
                     </div>
                 </div>
             </div>

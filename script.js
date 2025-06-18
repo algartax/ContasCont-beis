@@ -7,7 +7,18 @@ let periods = [];
 let charts = {};
 let chartViewMode = 'monthly';
 
-// Sheet filter configurations - ATUALIZADO para incluir filtro de conta especial
+// Variáveis para o sistema de comparações
+let comparisonMode = {
+    active: false,
+    type: 'mensal', // mensal, trimestral, semestral, anual
+    period1: null,
+    period2: null,
+    entityFilter: 'total',
+    minVariation: null,
+    maxResults: 250
+};
+
+// Sheet filter configurations
 const SHEET_FILTERS = {
     'SINTETICA': [
         { id: 'contaSearch', label: 'Buscar Conta', field: 'CONTA_SEARCH', type: 'search' },
@@ -33,6 +44,367 @@ const SHEET_FILTERS = {
         { id: 'descricaoDf', label: 'Descrição DF', field: 'Descrição DF' }
     ]
 };
+
+// ============================================
+// FUNÇÕES DE COMPARAÇÃO DE PERÍODOS
+// ============================================
+
+// Mapear períodos para diferentes tipos de agrupamento
+function mapPeriodsByType(type) {
+    const periodMap = {};
+    
+    periods.forEach(period => {
+        try {
+            const [day, month, year] = period.split('/');
+            const date = new Date(year, month - 1, day);
+            let key;
+            
+            switch (type) {
+                case 'mensal':
+                    key = `${String(month).padStart(2, '0')}/${year}`;
+                    break;
+                case 'trimestral':
+                    const quarter = Math.ceil(parseInt(month) / 3);
+                    key = `${quarter}T ${year}`;
+                    break;
+                case 'semestral':
+                    const semester = parseInt(month) <= 6 ? 1 : 2;
+                    key = `${semester}S ${year}`;
+                    break;
+                case 'anual':
+                    key = year;
+                    break;
+                default:
+                    key = period;
+            }
+            
+            if (!periodMap[key]) {
+                periodMap[key] = [];
+            }
+            periodMap[key].push(period);
+        } catch (error) {
+            console.error('Erro ao processar período:', period, error);
+        }
+    });
+    
+    return periodMap;
+}
+
+// Calcular total para um conjunto de períodos
+function calculateTotalForPeriods(data, periods, entity) {
+    let total = 0;
+    
+    data.forEach(item => {
+        periods.forEach(period => {
+            total += safeGetItemValue(item, period, entity);
+        });
+    });
+    
+    return total;
+}
+
+// Aplicar comparação de períodos
+function applyPeriodComparison() {
+    console.log('🔄 Aplicando comparação de períodos:', comparisonMode);
+    
+    if (!comparisonMode.period1 || !comparisonMode.period2) {
+        alert('Selecione ambos os períodos para comparação');
+        return;
+    }
+    
+    const periodMap = mapPeriodsByType(comparisonMode.type);
+    const periods1 = periodMap[comparisonMode.period1];
+    const periods2 = periodMap[comparisonMode.period2];
+    
+    if (!periods1 || !periods2) {
+        alert('Períodos inválidos para comparação');
+        return;
+    }
+    
+    console.log(`Comparando períodos:`, {
+        period1: comparisonMode.period1,
+        periods1,
+        period2: comparisonMode.period2,
+        periods2
+    });
+    
+    // Atualizar headers da tabela
+    updateTableHeaders(comparisonMode.period1, comparisonMode.period2);
+    
+    // Filtrar e ordenar dados baseado na comparação
+    updateDetailTableWithComparison(periods1, periods2);
+    
+    // Ativar modo de comparação
+    comparisonMode.active = true;
+    
+    // Fechar modal
+    document.getElementById('comparisonModal').classList.remove('active');
+    
+    // Mostrar resumo
+    showComparisonSummary(periods1, periods2);
+}
+
+// Atualizar headers da tabela para comparação
+function updateTableHeaders(period1Label, period2Label) {
+    const table = document.getElementById('detailsTable');
+    const headers = table.querySelectorAll('thead th');
+    
+    if (headers.length >= 6) {
+        headers[2].textContent = period2Label; // Período anterior
+        headers[3].textContent = period1Label; // Período atual
+        headers[4].textContent = 'Variação';
+        headers[5].textContent = 'Var %';
+    }
+}
+
+// Atualizar tabela com dados de comparação
+function updateDetailTableWithComparison(periods1, periods2) {
+    const tbody = document.querySelector('#detailsTable tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Calcular dados para cada conta
+    const comparisonData = filteredData.map(item => {
+        const { contaSAP, description } = extractAccountInfo(item);
+        
+        let value1 = 0, value2 = 0;
+        
+        // Calcular valores para cada conjunto de períodos
+        if (comparisonMode.entityFilter === 'total') {
+            periods1.forEach(p => {
+                if (item.values && item.values[p]) {
+                    value1 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
+                }
+            });
+            periods2.forEach(p => {
+                if (item.values && item.values[p]) {
+                    value2 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
+                }
+            });
+        } else {
+            periods1.forEach(p => {
+                value1 += safeGetItemValue(item, p, comparisonMode.entityFilter);
+            });
+            periods2.forEach(p => {
+                value2 += safeGetItemValue(item, p, comparisonMode.entityFilter);
+            });
+        }
+        
+        const variation = value1 - value2;
+        const variationPercent = value2 !== 0 ? (variation / value2) * 100 : 0;
+        
+        return {
+            contaSAP,
+            description,
+            value1,
+            value2,
+            variation,
+            variationPercent,
+            absVariationPercent: Math.abs(variationPercent)
+        };
+    });
+    
+    // Filtrar por variação mínima se especificada
+    let filteredComparison = comparisonData;
+    if (comparisonMode.minVariation) {
+        filteredComparison = comparisonData.filter(item => 
+            item.absVariationPercent >= comparisonMode.minVariation
+        );
+    }
+    
+    // Ordenar por maior variação absoluta
+    filteredComparison.sort((a, b) => b.absVariationPercent - a.absVariationPercent);
+    
+    // Limitar resultados
+    if (comparisonMode.maxResults !== 'all') {
+        filteredComparison = filteredComparison.slice(0, parseInt(comparisonMode.maxResults));
+    }
+    
+    // Filtrar por descrição se houver filtro ativo
+    const descriptionFilter = document.getElementById('descriptionFilter').value.toLowerCase();
+    if (descriptionFilter) {
+        filteredComparison = filteredComparison.filter(item => 
+            item.description.toLowerCase().includes(descriptionFilter) || 
+            item.contaSAP.toString().toLowerCase().includes(descriptionFilter)
+        );
+    }
+    
+    // Renderizar resultados
+    if (filteredComparison.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="6" class="no-data">Nenhuma conta encontrada com os critérios de comparação especificados.</td>`;
+        tbody.appendChild(row);
+        return;
+    }
+    
+    filteredComparison.forEach(item => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+            <td>${item.contaSAP || '-'}</td>
+            <td>${item.description || '-'}</td>
+            <td>${formatCurrency(item.value2)}</td>
+            <td>${formatCurrency(item.value1)}</td>
+            <td class="variation-cell ${item.variation >= 0 ? 'positive' : 'negative'}">
+                ${formatCurrency(item.variation)}
+            </td>
+            <td class="variation-cell ${item.variationPercent >= 0 ? 'positive' : 'negative'}">
+                ${item.variationPercent >= 0 ? '+' : ''}${item.variationPercent.toFixed(2)}%
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    console.log(`✅ Tabela atualizada com ${filteredComparison.length} registros de comparação`);
+}
+
+// Mostrar resumo da comparação
+function showComparisonSummary(periods1, periods2) {
+    const summarySection = document.getElementById('comparisonSummary');
+    const summaryContent = document.getElementById('summaryContent');
+    
+    // Calcular totais
+    const totals1 = calculateComparisonTotals(periods1);
+    const totals2 = calculateComparisonTotals(periods2);
+    
+    const totalVariation = {
+        telecom: totals1.telecom - totals2.telecom,
+        vogel: totals1.vogel - totals2.vogel,
+        consolidado: totals1.consolidado - totals2.consolidado
+    };
+    
+    const totalVariationPercent = {
+        telecom: totals2.telecom !== 0 ? (totalVariation.telecom / totals2.telecom) * 100 : 0,
+        vogel: totals2.vogel !== 0 ? (totalVariation.vogel / totals2.vogel) * 100 : 0,
+        consolidado: totals2.consolidado !== 0 ? (totalVariation.consolidado / totals2.consolidado) * 100 : 0
+    };
+    
+    summaryContent.innerHTML = `
+        <div class="summary-item">
+            <span class="summary-label">Tipo de Comparação:</span>
+            <span class="summary-value">${comparisonMode.type.charAt(0).toUpperCase() + comparisonMode.type.slice(1)}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Períodos:</span>
+            <span class="summary-value">${comparisonMode.period1} vs ${comparisonMode.period2}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Telecom:</span>
+            <span class="summary-value variation-cell ${totalVariation.telecom >= 0 ? 'positive' : 'negative'}">
+                ${formatCurrency(totalVariation.telecom)} (${totalVariationPercent.telecom >= 0 ? '+' : ''}${totalVariationPercent.telecom.toFixed(2)}%)
+            </span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Vogel:</span>
+            <span class="summary-value variation-cell ${totalVariation.vogel >= 0 ? 'positive' : 'negative'}">
+                ${formatCurrency(totalVariation.vogel)} (${totalVariationPercent.vogel >= 0 ? '+' : ''}${totalVariationPercent.vogel.toFixed(2)}%)
+            </span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Somado:</span>
+            <span class="summary-value variation-cell ${totalVariation.consolidado >= 0 ? 'positive' : 'negative'}">
+                ${formatCurrency(totalVariation.consolidado)} (${totalVariationPercent.consolidado >= 0 ? '+' : ''}${totalVariationPercent.consolidado.toFixed(2)}%)
+            </span>
+        </div>
+    `;
+    
+    summarySection.style.display = 'block';
+}
+
+// Calcular totais para comparação
+function calculateComparisonTotals(periodsArray) {
+    const totals = { telecom: 0, vogel: 0, consolidado: 0 };
+    
+    filteredData.forEach(item => {
+        periodsArray.forEach(period => {
+            totals.telecom += safeGetItemValue(item, period, 'telecom');
+            totals.vogel += safeGetItemValue(item, period, 'vogel');
+            totals.consolidado += safeGetItemValue(item, period, 'consolidado');
+        });
+    });
+    
+    return totals;
+}
+
+// Comparações rápidas
+function applyQuickComparison(type) {
+    console.log('🚀 Aplicando comparação rápida:', type);
+    
+    if (!periods || periods.length < 2) {
+        alert('Dados insuficientes para comparação rápida');
+        return;
+    }
+    
+    const lastPeriod = periods[periods.length - 1];
+    const [day, month, year] = lastPeriod.split('/');
+    
+    let period1, period2, compType;
+    
+    try {
+        switch (type) {
+            case 'mes-anterior':
+                compType = 'mensal';
+                period1 = formatPeriod(lastPeriod);
+                const prevMonth = periods[periods.length - 2];
+                period2 = formatPeriod(prevMonth);
+                break;
+                
+            case 'trimestre-anterior':
+                compType = 'trimestral';
+                const currentQuarter = Math.ceil(parseInt(month) / 3);
+                period1 = `${currentQuarter}T ${year}`;
+                const prevQuarter = currentQuarter === 1 ? `4T ${parseInt(year) - 1}` : `${currentQuarter - 1}T ${year}`;
+                period2 = prevQuarter;
+                break;
+                
+            case 'mesmo-periodo-ano-passado':
+                compType = 'mensal';
+                period1 = formatPeriod(lastPeriod);
+                period2 = `${String(month).padStart(2, '0')}/${parseInt(year) - 1}`;
+                break;
+                
+            case 'trimestre-mesmo-ano-passado':
+                compType = 'trimestral';
+                const quarter = Math.ceil(parseInt(month) / 3);
+                period1 = `${quarter}T ${year}`;
+                period2 = `${quarter}T ${parseInt(year) - 1}`;
+                break;
+        }
+        
+        // Verificar se os períodos existem
+        const periodMap = mapPeriodsByType(compType);
+        if (!periodMap[period1] || !periodMap[period2]) {
+            alert(`Períodos não encontrados para comparação: ${period1} ou ${period2}`);
+            return;
+        }
+        
+        // Aplicar comparação
+        comparisonMode.type = compType;
+        comparisonMode.period1 = period1;
+        comparisonMode.period2 = period2;
+        comparisonMode.entityFilter = 'total';
+        comparisonMode.minVariation = null;
+        comparisonMode.maxResults = 250;
+        
+        // Atualizar interface
+        document.querySelector(`[data-type="${compType}"]`).click();
+        document.getElementById('comparisonPeriod1').value = period1;
+        document.getElementById('comparisonPeriod2').value = period2;
+        
+        // Aplicar comparação
+        applyPeriodComparison();
+        
+    } catch (error) {
+        console.error('Erro na comparação rápida:', error);
+        alert('Erro ao aplicar comparação rápida');
+    }
+}
+
+// ============================================
+// FUNÇÕES UTILITÁRIAS ORIGINAIS
+// ============================================
 
 // Utility Functions
 function formatPeriod(period) {
@@ -86,7 +458,7 @@ function formatCurrencyCompact(value) {
     return formatCurrency(value);
 }
 
-// NOVA FUNÇÃO: Extrair informações da conta
+// Extrair informações da conta
 function extractAccountInfo(item) {
     let contaSAP = '';
     let description = '';
@@ -95,7 +467,6 @@ function extractAccountInfo(item) {
         const keyTrimmed = key.trim().replace(/\s+/g, ' ');
         const keyNoSpaces = key.replace(/\s/g, '');
         
-        // Verificar se é conta SAP ou número conta
         if (keyTrimmed === 'Conta SAP' || keyTrimmed === 'CONTA SAP' || 
             keyTrimmed === 'Número Conta' || keyTrimmed === 'NÚMERO CONTA' ||
             keyNoSpaces.toLowerCase() === 'contasap' || 
@@ -103,7 +474,6 @@ function extractAccountInfo(item) {
             contaSAP = String(item[key] || '');
         }
         
-        // Verificar descrição
         if (keyTrimmed === 'Descrição Conta' || keyTrimmed === 'Descrição DF' ||
             keyTrimmed === 'DESCRIÇÃO CONTA' || keyTrimmed === 'DESCRIÇÃO DF') {
             description = String(item[key] || '');
@@ -170,6 +540,16 @@ function showUploadModal(show) {
     }
 }
 
+function showComparisonModal(show) {
+    const modal = document.getElementById('comparisonModal');
+    if (show) {
+        modal.classList.add('active');
+        populateComparisonPeriods();
+    } else {
+        modal.classList.remove('active');
+    }
+}
+
 function toggleSidebar() {
     const sidebarContent = document.querySelector('.sidebar-content');
     sidebarContent.classList.toggle('expanded');
@@ -206,16 +586,13 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeEventListeners() {
     document.getElementById('fileInput').addEventListener('change', handleFileUpload);
     
-    // BOTÃO APLICAR - com debug
+    // Botões originais
     const applyBtn = document.getElementById('applyFilters');
     if (applyBtn) {
         applyBtn.addEventListener('click', () => {
             console.log('🔵 BOTÃO APLICAR CLICADO!');
             applyFilters();
         });
-        console.log('✅ Event listener do botão Aplicar configurado');
-    } else {
-        console.error('❌ Botão applyFilters não encontrado!');
     }
     
     document.getElementById('clearFilters').addEventListener('click', () => clearFilters());
@@ -226,24 +603,223 @@ function initializeEventListeners() {
     document.getElementById('quarterlyBtn').addEventListener('click', () => toggleChartView('quarterly'));
     document.getElementById('uploadButton').addEventListener('click', () => showUploadModal(true));
     document.getElementById('closeModal').addEventListener('click', () => showUploadModal(false));
-    document.getElementById('descriptionFilter').addEventListener('input', filterDetailTable);
-    document.getElementById('sortFilter').addEventListener('change', filterDetailTable);
-    document.getElementById('entityFilter').addEventListener('change', filterDetailTable);
+    document.getElementById('descriptionFilter').addEventListener('input', () => {
+        if (comparisonMode.active) {
+            // ✅ CORREÇÃO: Se estamos em modo de comparação, re-aplicar comparação
+            const periodMap = mapPeriodsByType(comparisonMode.type);
+            const periods1 = periodMap[comparisonMode.period1];
+            const periods2 = periodMap[comparisonMode.period2];
+            if (periods1 && periods2) {
+                updateDetailTableWithComparison(periods1, periods2);
+            }
+        } else {
+            filterDetailTable();
+        }
+    });
+    document.getElementById('sortFilter').addEventListener('change', () => {
+        if (comparisonMode.active) {
+            // ✅ CORREÇÃO: Se estamos em modo de comparação, re-aplicar comparação
+            const periodMap = mapPeriodsByType(comparisonMode.type);
+            const periods1 = periodMap[comparisonMode.period1];
+            const periods2 = periodMap[comparisonMode.period2];
+            if (periods1 && periods2) {
+                updateDetailTableWithComparison(periods1, periods2);
+            }
+        } else {
+            filterDetailTable();
+        }
+    });
+    document.getElementById('entityFilter').addEventListener('change', () => {
+        if (comparisonMode.active) {
+            // ✅ CORREÇÃO: Se estamos em modo de comparação, re-aplicar comparação
+            const periodMap = mapPeriodsByType(comparisonMode.type);
+            const periods1 = periodMap[comparisonMode.period1];
+            const periods2 = periodMap[comparisonMode.period2];
+            if (periods1 && periods2) {
+                updateDetailTableWithComparison(periods1, periods2);
+            }
+        } else {
+            filterDetailTable();
+        }
+    });
     document.getElementById('exportTable').addEventListener('click', exportTableToExcel);
     document.getElementById('downloadChart').addEventListener('click', downloadChart);
     
-    // Inicializar modal de contas
+    // ============================================
+    // EVENT LISTENERS PARA COMPARAÇÕES
+    // ============================================
+    
+    // Botão para abrir modal de comparações
+    document.getElementById('openComparisonModal').addEventListener('click', () => {
+        if (!selectedSheet || !rawData || rawData.length === 0) {
+            alert('Selecione uma aba e carregue dados antes de fazer comparações');
+            return;
+        }
+        showComparisonModal(true);
+    });
+    
+    // Fechar modal de comparações
+    document.getElementById('closeComparisonModal').addEventListener('click', () => {
+        showComparisonModal(false);
+    });
+    
+    // Botões de tipo de comparação
+    document.querySelectorAll('.comparison-type-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.comparison-type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            comparisonMode.type = btn.dataset.type;
+            populateComparisonPeriods();
+        });
+    });
+    
+    // Seleção de períodos para comparação
+    document.getElementById('comparisonPeriod1').addEventListener('change', (e) => {
+        comparisonMode.period1 = e.target.value;
+    });
+    
+    document.getElementById('comparisonPeriod2').addEventListener('change', (e) => {
+        comparisonMode.period2 = e.target.value;
+    });
+    
+    // Filtros de comparação
+    document.getElementById('comparisonEntityFilter').addEventListener('change', (e) => {
+        comparisonMode.entityFilter = e.target.value;
+    });
+    
+    document.getElementById('comparisonMinVariation').addEventListener('input', (e) => {
+        comparisonMode.minVariation = e.target.value ? parseFloat(e.target.value) : null;
+    });
+    
+    document.getElementById('comparisonMaxResults').addEventListener('change', (e) => {
+        comparisonMode.maxResults = e.target.value;
+    });
+    
+    // Comparações rápidas
+    document.querySelectorAll('.quick-comparison-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const quickType = btn.dataset.quick;
+            applyQuickComparison(quickType);
+        });
+    });
+    
+    // Botões de ação do modal
+    document.getElementById('clearComparisonBtn').addEventListener('click', () => {
+        clearComparisonSettings();
+    });
+    
+    document.getElementById('applyComparisonBtn').addEventListener('click', () => {
+        applyPeriodComparison();
+    });
+    
+    // Inicializar modais
     initializeAccountModal();
     
     window.addEventListener('click', function(e) {
-        const modal = document.getElementById('uploadModal');
-        if (e.target === modal) {
+        const uploadModal = document.getElementById('uploadModal');
+        const comparisonModal = document.getElementById('comparisonModal');
+        
+        if (e.target === uploadModal) {
             showUploadModal(false);
+        }
+        if (e.target === comparisonModal) {
+            showComparisonModal(false);
         }
     });
     
     window.addEventListener('resize', handleResize);
     handleResize();
+}
+
+// ============================================
+// FUNÇÕES PARA MODAL DE COMPARAÇÕES
+// ============================================
+
+function populateComparisonPeriods() {
+    if (!periods || periods.length === 0) return;
+    
+    const period1Select = document.getElementById('comparisonPeriod1');
+    const period2Select = document.getElementById('comparisonPeriod2');
+    
+    // Limpar opções
+    period1Select.innerHTML = '<option value="">Selecione o primeiro período...</option>';
+    period2Select.innerHTML = '<option value="">Selecione o segundo período...</option>';
+    
+    // Mapear períodos baseado no tipo selecionado
+    const periodMap = mapPeriodsByType(comparisonMode.type);
+    const periodKeys = Object.keys(periodMap).sort();
+    
+    // Popular dropdowns
+    periodKeys.forEach(key => {
+        const option1 = document.createElement('option');
+        option1.value = key;
+        option1.textContent = key;
+        period1Select.appendChild(option1);
+        
+        const option2 = document.createElement('option');
+        option2.value = key;
+        option2.textContent = key;
+        period2Select.appendChild(option2);
+    });
+    
+    console.log(`✅ Períodos populados para comparação ${comparisonMode.type}:`, periodKeys);
+}
+
+function clearComparisonSettings() {
+    // Resetar tipo para mensal
+    document.querySelectorAll('.comparison-type-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector('[data-type="mensal"]').classList.add('active');
+    comparisonMode.type = 'mensal';
+    
+    // Limpar seleções
+    document.getElementById('comparisonPeriod1').value = '';
+    document.getElementById('comparisonPeriod2').value = '';
+    document.getElementById('comparisonEntityFilter').value = 'total';
+    document.getElementById('comparisonMinVariation').value = '';
+    document.getElementById('comparisonMaxResults').value = '250';
+    
+    // Resetar modo de comparação
+    comparisonMode = {
+        active: false,
+        type: 'mensal',
+        period1: null,
+        period2: null,
+        entityFilter: 'total',
+        minVariation: null,
+        maxResults: 250
+    };
+    
+    // Esconder resumo
+    document.getElementById('comparisonSummary').style.display = 'none';
+    
+    // Repopular períodos
+    populateComparisonPeriods();
+    
+    // Voltar ao modo normal da tabela se estava em comparação
+    if (comparisonMode.active) {
+        resetTableToNormalMode();
+    }
+    
+    console.log('🧹 Configurações de comparação limpas');
+}
+
+function resetTableToNormalMode() {
+    // Resetar headers da tabela
+    const table = document.getElementById('detailsTable');
+    const headers = table.querySelectorAll('thead th');
+    
+    if (headers.length >= 6) {
+        headers[2].textContent = 'Valor Anterior';
+        headers[3].textContent = 'Valor Atual';
+        headers[4].textContent = 'Variação';
+        headers[5].textContent = 'Var %';
+    }
+    
+    // Desativar modo de comparação
+    comparisonMode.active = false;
+    
+    // Atualizar tabela com dados normais
+    filterDetailTable();
 }
 
 function updateCurrentDate() {
@@ -320,7 +896,6 @@ async function readExcelFile(file) {
                 
                 const sheetNames = workbook.SheetNames;
                 console.log('Available sheets:', sheetNames);
-                console.log('Workbook structure:', workbook);
                 
                 const sheetSelector = document.getElementById('sheetSelector');
                 sheetSelector.innerHTML = '<option value="">Selecione uma aba...</option>';
@@ -340,15 +915,10 @@ async function readExcelFile(file) {
                     const worksheet = workbook.Sheets[sheetName];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                     allSheetsData[sheetName] = jsonData;
-                    console.log(`Sheet "${sheetName}" has ${jsonData.length} rows`);
-                    if (jsonData.length > 0) {
-                        console.log(`Headers for "${sheetName}":`, jsonData[0]);
-                    }
                 });
                 
                 resolve();
             } catch (error) {
-                console.error('Error reading Excel file:', error);
                 reject(error);
             }
         };
@@ -380,7 +950,6 @@ function handleSheetChange() {
     processSheetData(sheetName);
 }
 
-// FUNÇÃO ATUALIZADA: Criar filtros dinâmicos com campo de busca especial
 function createDynamicFilters(sheetName) {
     console.log(`🔧 Criando filtros dinâmicos para aba: ${sheetName}`);
     
@@ -394,15 +963,11 @@ function createDynamicFilters(sheetName) {
         { id: 'sintetica', label: 'SINTÉTICA', field: 'SINTETICA' }
     ];
     
-    console.log('Configuração de filtros:', filterConfig);
-    
     filterConfig.forEach(config => {
         const filterGroup = document.createElement('div');
         filterGroup.className = 'filter-group';
         
         if (config.type === 'search') {
-            // Campo de busca especial para contas
-            console.log(`Criando campo de busca: ${config.id}`);
             filterGroup.innerHTML = `
                 <label for="filter_${config.id}">${config.label}</label>
                 <div class="search-container">
@@ -421,7 +986,6 @@ function createDynamicFilters(sheetName) {
                 </div>
             `;
         } else {
-            // Select normal para outros filtros
             filterGroup.innerHTML = `
                 <label for="filter_${config.id}">${config.label}</label>
                 <div class="select-wrapper">
@@ -436,22 +1000,10 @@ function createDynamicFilters(sheetName) {
         dynamicFiltersContainer.appendChild(filterGroup);
     });
     
-    // Verificar se os elementos foram criados
-    setTimeout(() => {
-        const contaInput = document.getElementById('filter_contaSearch');
-        console.log('Campo criado:', {
-            existe: !!contaInput,
-            id: contaInput?.id,
-            dataField: contaInput?.dataset?.field,
-            placeholder: contaInput?.placeholder
-        });
-    }, 100);
-    
     // Adicionar event listeners
     filterConfig.forEach(config => {
         if (config.type === 'search') {
             setTimeout(() => {
-                console.log(`Configurando busca para: ${config.id}`);
                 setupAccountSearch(config.id);
             }, 100);
         } else {
@@ -465,7 +1017,6 @@ function createDynamicFilters(sheetName) {
     });
 }
 
-// NOVA FUNÇÃO: Configurar busca de conta com autocomplete
 function setupAccountSearch(filterId) {
     const input = document.getElementById(`filter_${filterId}`);
     const clearBtn = document.getElementById(`clear_${filterId}`);
@@ -475,7 +1026,6 @@ function setupAccountSearch(filterId) {
     
     let accountOptions = [];
     
-    // Gerar lista de contas quando os dados estiverem disponíveis
     function generateAccountOptions() {
         accountOptions = [];
         const seen = new Set();
@@ -503,11 +1053,9 @@ function setupAccountSearch(filterId) {
         });
         
         accountOptions.sort((a, b) => {
-            // Ordenar por número da conta primeiro, depois por descrição
             if (a.contaSAP && b.contaSAP) {
                 const contaA = String(a.contaSAP);
                 const contaB = String(b.contaSAP);
-                // Ordenação numérica se ambos forem números
                 const numA = parseInt(contaA);
                 const numB = parseInt(contaB);
                 if (!isNaN(numA) && !isNaN(numB)) {
@@ -519,7 +1067,6 @@ function setupAccountSearch(filterId) {
         });
     }
     
-    // Buscar e mostrar sugestões
     function showSuggestions(query) {
         if (!query || query.length < 2) {
             suggestions.innerHTML = '';
@@ -529,7 +1076,7 @@ function setupAccountSearch(filterId) {
         
         const filtered = accountOptions.filter(option => 
             option.searchText.includes(query.toLowerCase())
-        ).slice(0, 10); // Limitar a 10 sugestões
+        ).slice(0, 10);
         
         if (filtered.length === 0) {
             suggestions.innerHTML = '';
@@ -546,7 +1093,6 @@ function setupAccountSearch(filterId) {
         
         suggestions.style.display = 'block';
         
-        // Adicionar event listeners nas sugestões
         suggestions.querySelectorAll('.suggestion-item').forEach(item => {
             item.addEventListener('click', () => {
                 const conta = item.dataset.conta;
@@ -565,7 +1111,6 @@ function setupAccountSearch(filterId) {
         });
     }
     
-    // Event listeners
     input.addEventListener('input', (e) => {
         const value = e.target.value;
         
@@ -588,7 +1133,6 @@ function setupAccountSearch(filterId) {
     });
     
     input.addEventListener('blur', (e) => {
-        // Delay para permitir clique nas sugestões
         setTimeout(() => {
             suggestions.style.display = 'none';
         }, 200);
@@ -603,255 +1147,13 @@ function setupAccountSearch(filterId) {
         updateCascadingFilters();
     });
     
-    // Gerar opções quando disponível
     if (rawData.length > 0) {
         generateAccountOptions();
     }
     
-    // Armazenar função para usar depois
     input._generateAccountOptions = generateAccountOptions;
 }
 
-// NOVA FUNÇÃO: Abrir modal de seleção de contas (SIMPLIFICADA)
-function openAccountModal(targetInput, accountOptions) {
-    console.log('🔍 openAccountModal chamada:', { targetInput: targetInput?.id, accountOptionsLength: accountOptions?.length });
-    
-    // Verificar se temos dados disponíveis
-    if (!rawData || rawData.length === 0) {
-        alert('Selecione uma aba primeiro para visualizar as contas disponíveis.');
-        return;
-    }
-    
-    // Se accountOptions está vazio ou não existe, gerar agora
-    if (!accountOptions || accountOptions.length === 0) {
-        console.log('Gerando opções de conta...');
-        accountOptions = generateAccountOptionsManually();
-    }
-    
-    if (accountOptions.length === 0) {
-        alert('Nenhuma conta encontrada nesta aba. Verifique se a aba selecionada contém dados de contas.');
-        return;
-    }
-    
-    console.log(`📋 Abrindo modal com ${accountOptions.length} contas`);
-    
-    // Usar o modal que já existe no HTML
-    const modal = document.getElementById('accountModal');
-    const searchInput = document.getElementById('accountSearch');
-    const accountList = document.getElementById('accountList');
-    
-    if (!modal || !searchInput || !accountList) {
-        console.error('❌ Elementos do modal não encontrados no HTML');
-        return;
-    }
-    
-    // Limpar busca anterior
-    searchInput.value = '';
-    
-    // Função para renderizar lista de contas
-    function renderAccountList(accounts = accountOptions) {
-        accountList.innerHTML = '';
-        
-        if (accounts.length === 0) {
-            accountList.innerHTML = '<div class="no-accounts">Nenhuma conta encontrada</div>';
-            return;
-        }
-        
-        accounts.forEach(account => {
-            const item = document.createElement('div');
-            item.className = 'account-item';
-            item.innerHTML = `
-                <div class="account-number">${account.contaSAP || '-'}</div>
-                <div class="account-description">${account.description || '-'}</div>
-            `;
-            
-            item.addEventListener('click', () => {
-                console.log('✅ Conta selecionada:', account);
-                
-                // Preencher o campo de busca original
-                targetInput.value = account.displayText;
-                targetInput.dataset.selectedConta = account.contaSAP;
-                targetInput.dataset.selectedDescription = account.description;
-                
-                // Mostrar botão limpar
-                const clearBtn = document.getElementById(targetInput.id.replace('filter_', 'clear_'));
-                if (clearBtn) clearBtn.style.display = 'inline-block';
-                
-                // Fechar modal
-                modal.classList.remove('active');
-                
-                // Atualizar filtros
-                updateCascadingFilters();
-            });
-            
-            accountList.appendChild(item);
-        });
-    }
-    
-    // Configurar busca em tempo real no modal (remover listeners anteriores)
-    const newSearchInput = searchInput.cloneNode(true);
-    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-    
-    newSearchInput.addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase();
-        
-        if (!query) {
-            renderAccountList();
-            return;
-        }
-        
-        const filtered = accountOptions.filter(account => 
-            account.searchText && account.searchText.includes(query)
-        );
-        
-        renderAccountList(filtered);
-    });
-    
-    // Renderizar lista inicial
-    renderAccountList();
-    
-    // Mostrar modal
-    modal.classList.add('active');
-    console.log('✅ Modal ativado');
-    
-    // Focar no campo de busca
-    setTimeout(() => {
-        newSearchInput.focus();
-    }, 100);
-}
-
-// Função para configurar o modal quando a página carrega
-function initializeAccountModal() {
-    const modal = document.getElementById('accountModal');
-    const closeBtn = document.getElementById('closeAccountModal');
-    
-    if (modal && closeBtn) {
-        // Event listener para fechar modal
-        closeBtn.addEventListener('click', () => {
-            modal.classList.remove('active');
-        });
-        
-        // Fechar modal ao clicar fora
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-            }
-        });
-        
-        console.log('✅ Modal de contas inicializado');
-    } else {
-        console.error('❌ Modal de contas não encontrado no HTML');
-    }
-}
-
-// FUNÇÃO DE TESTE: Adicionar um botão de teste temporário
-function addTestButton() {
-    const testBtn = document.createElement('button');
-    testBtn.innerText = 'TESTE MODAL';
-    testBtn.style.position = 'fixed';
-    testBtn.style.top = '10px';
-    testBtn.style.right = '10px';
-    testBtn.style.zIndex = '9999';
-    testBtn.style.padding = '10px';
-    testBtn.style.backgroundColor = 'red';
-    testBtn.style.color = 'white';
-    testBtn.style.border = 'none';
-    testBtn.style.cursor = 'pointer';
-    
-    testBtn.addEventListener('click', () => {
-        console.log('🔴 BOTÃO TESTE CLICADO');
-        const modal = document.getElementById('accountModal');
-        if (modal) {
-            modal.classList.add('active');
-            console.log('✅ Modal ativado via teste');
-        } else {
-            console.error('❌ Modal não encontrado');
-        }
-    });
-    
-    document.body.appendChild(testBtn);
-    console.log('🔴 Botão de teste adicionado');
-}
-
-// FUNÇÃO SEPARADA: Configurar apenas a lupa para abrir modal
-function setupAccountSearchIcon() {
-    console.log('🔧 Configurando lupa de conta...');
-    
-    setTimeout(() => {
-        const accountSearchInput = document.getElementById('filter_contaSearch');
-        if (!accountSearchInput) {
-            console.log('❌ Campo filter_contaSearch ainda não existe, tentando novamente...');
-            setTimeout(setupAccountSearchIcon, 500);
-            return;
-        }
-        
-        console.log('✅ Campo filter_contaSearch encontrado');
-        
-        // Encontrar a lupa específica deste campo
-        const searchContainer = accountSearchInput.parentElement;
-        const searchIcon = searchContainer.querySelector('.fas.fa-search');
-        
-        if (!searchIcon) {
-            console.error('❌ Lupa não encontrada no container do campo de conta');
-            return;
-        }
-        
-        console.log('✅ Lupa de conta encontrada');
-        
-        // IMPORTANTE: Não mexer nos event listeners existentes do input
-        // Apenas configurar a lupa separadamente
-        
-        // Configurar apenas a lupa (sem afetar o input)
-        searchIcon.style.cursor = 'pointer';
-        searchIcon.style.pointerEvents = 'auto';
-        searchIcon.title = 'Clique para ver todas as contas';
-        
-        // Remover event listeners anteriores APENAS da lupa
-        const newSearchIcon = searchIcon.cloneNode(true);
-        searchIcon.parentNode.replaceChild(newSearchIcon, searchIcon);
-        
-        // Event listener APENAS para a lupa (modal)
-        newSearchIcon.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('🔍 LUPA DE CONTA CLICADA!');
-            
-            // Gerar opções independentemente do autocomplete
-            if (!rawData || rawData.length === 0) {
-                alert('Selecione uma aba primeiro!');
-                return;
-            }
-            
-            console.log('📋 Gerando lista de contas para modal...');
-            const accountOptions = generateAccountOptionsManually();
-            
-            if (accountOptions.length === 0) {
-                alert('Nenhuma conta encontrada nesta aba.');
-                return;
-            }
-            
-            console.log(`✅ ${accountOptions.length} contas encontradas, abrindo modal...`);
-            openAccountModalWithData(accountSearchInput, accountOptions);
-        });
-        
-        // Hover effect apenas na lupa
-        newSearchIcon.addEventListener('mouseenter', () => {
-            newSearchIcon.style.color = '#0066cc';
-            newSearchIcon.style.backgroundColor = '#f0f8ff';
-            newSearchIcon.style.borderRadius = '4px';
-        });
-        
-        newSearchIcon.addEventListener('mouseleave', () => {
-            newSearchIcon.style.color = '#6b7280';
-            newSearchIcon.style.backgroundColor = 'transparent';
-        });
-        
-        console.log('✅ Lupa de conta configurada com sucesso (independente do autocomplete)!');
-        
-    }, 100);
-}
-
-// FUNÇÃO SIMPLIFICADA PARA ABRIR MODAL COM DADOS
 function openAccountModalWithData(targetInput, accountOptions) {
     console.log(`🔍 Abrindo modal com ${accountOptions.length} contas`);
     
@@ -864,10 +1166,8 @@ function openAccountModalWithData(targetInput, accountOptions) {
         return;
     }
     
-    // Limpar busca anterior
     searchInput.value = '';
     
-    // Função para renderizar lista
     function renderList(accounts = accountOptions) {
         accountList.innerHTML = '';
         
@@ -875,8 +1175,6 @@ function openAccountModalWithData(targetInput, accountOptions) {
             accountList.innerHTML = '<div class="no-accounts">Nenhuma conta encontrada</div>';
             return;
         }
-        
-        console.log(`📋 Renderizando ${accounts.length} contas...`);
         
         accounts.forEach((account, index) => {
             const item = document.createElement('div');
@@ -887,22 +1185,15 @@ function openAccountModalWithData(targetInput, accountOptions) {
             `;
             
             item.addEventListener('click', () => {
-                console.log('✅ Conta selecionada:', account);
-                
-                // Preencher campo
                 targetInput.value = account.displayText;
                 targetInput.dataset.selectedConta = account.contaSAP;
                 targetInput.dataset.selectedDescription = account.description;
                 
-                // Mostrar botão limpar
                 const clearBtn = document.getElementById('clear_contaSearch');
                 if (clearBtn) clearBtn.style.display = 'inline-block';
                 
-                // Fechar modal
                 modal.classList.remove('active');
                 
-                // APLICAR FILTROS IMEDIATAMENTE
-                console.log('🔄 Conta selecionada via modal, aplicando filtros automaticamente...');
                 updateCascadingFilters();
                 setTimeout(() => {
                     applyFilters();
@@ -913,7 +1204,6 @@ function openAccountModalWithData(targetInput, accountOptions) {
         });
     }
     
-    // Configurar busca no modal
     const newSearchInput = searchInput.cloneNode(true);
     searchInput.parentNode.replaceChild(newSearchInput, searchInput);
     
@@ -934,29 +1224,89 @@ function openAccountModalWithData(targetInput, accountOptions) {
         renderList(filtered);
     });
     
-    // Renderizar lista inicial
     renderList();
-    
-    // Mostrar modal
     modal.classList.add('active');
-    console.log('✅ Modal aberto com sucesso!');
-    
-    // Focar no campo de busca
     setTimeout(() => newSearchInput.focus(), 100);
 }
 
-// NOVA FUNÇÃO: Gerar opções de conta manualmente COM FILTROS CASCATA (LÓGICA ORIGINAL)
+function initializeAccountModal() {
+    const modal = document.getElementById('accountModal');
+    const closeBtn = document.getElementById('closeAccountModal');
+    
+    if (modal && closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+    }
+}
+
+function setupAccountSearchIcon() {
+    setTimeout(() => {
+        const accountSearchInput = document.getElementById('filter_contaSearch');
+        if (!accountSearchInput) {
+            setTimeout(setupAccountSearchIcon, 500);
+            return;
+        }
+        
+        const searchContainer = accountSearchInput.parentElement;
+        const searchIcon = searchContainer.querySelector('.fas.fa-search');
+        
+        if (!searchIcon) return;
+        
+        searchIcon.style.cursor = 'pointer';
+        searchIcon.style.pointerEvents = 'auto';
+        searchIcon.title = 'Clique para ver todas as contas';
+        
+        const newSearchIcon = searchIcon.cloneNode(true);
+        searchIcon.parentNode.replaceChild(newSearchIcon, searchIcon);
+        
+        newSearchIcon.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (!rawData || rawData.length === 0) {
+                alert('Selecione uma aba primeiro!');
+                return;
+            }
+            
+            const accountOptions = generateAccountOptionsManually();
+            
+            if (accountOptions.length === 0) {
+                alert('Nenhuma conta encontrada nesta aba.');
+                return;
+            }
+            
+            openAccountModalWithData(accountSearchInput, accountOptions);
+        });
+        
+        newSearchIcon.addEventListener('mouseenter', () => {
+            newSearchIcon.style.color = '#0066cc';
+            newSearchIcon.style.backgroundColor = '#f0f8ff';
+            newSearchIcon.style.borderRadius = '4px';
+        });
+        
+        newSearchIcon.addEventListener('mouseleave', () => {
+            newSearchIcon.style.color = '#6b7280';
+            newSearchIcon.style.backgroundColor = 'transparent';
+        });
+        
+    }, 100);
+}
+
 function generateAccountOptionsManually() {
-    console.log('🔄 generateAccountOptionsManually iniciada');
     const accountOptions = [];
     const seen = new Set();
     
     if (!rawData || rawData.length === 0) {
-        console.log('❌ Nenhum rawData disponível');
         return accountOptions;
     }
     
-    // USAR EXATAMENTE A MESMA LÓGICA DO populateFilterOptions
     const dynamicFilters = document.querySelectorAll('#dynamicFilters select');
     const currentFilters = {};
     
@@ -966,20 +1316,16 @@ function generateAccountOptionsManually() {
         }
     });
     
-    // Filter data based on other selections (CÓDIGO ORIGINAL)
     let filteredDataForOptions = rawData;
     
     Object.keys(currentFilters).forEach(currentField => {
-        if (currentField !== 'CONTA_SEARCH') { // Não filtrar pelo próprio campo de conta
+        if (currentField !== 'CONTA_SEARCH') {
             filteredDataForOptions = filteredDataForOptions.filter(item => 
                 item[currentField] === currentFilters[currentField]
             );
         }
     });
     
-    console.log(`Modal: dados após cascata ${rawData.length} → ${filteredDataForOptions.length}`);
-    
-    // Gerar opções apenas dos dados filtrados
     filteredDataForOptions.forEach(item => {
         const { contaSAP, description } = extractAccountInfo(item);
         
@@ -1016,7 +1362,6 @@ function generateAccountOptionsManually() {
         return a.displayText.localeCompare(b.displayText);
     });
     
-    console.log(`✅ Modal: geradas ${accountOptions.length} opções com cascata original`);
     return accountOptions;
 }
 
@@ -1032,8 +1377,6 @@ function processSheetData(sheetName) {
     
     const headers = data[0];
     const rows = data.slice(1);
-    
-    console.log('Headers encontrados:', headers);
     
     const dateColumns = {};
     headers.forEach((header, index) => {
@@ -1069,8 +1412,6 @@ function processSheetData(sheetName) {
         }
     });
     
-    console.log('Períodos encontrados:', periods);
-    
     rawData = rows.map(row => {
         const item = {
             values: {}
@@ -1097,16 +1438,11 @@ function processSheetData(sheetName) {
     
     console.log(`📊 Processados ${rawData.length} registros`);
     
-    // 1. Primeiro, gerar opções para o autocomplete original
-    console.log('🔄 Atualizando autocomplete de conta...');
     const accountSearchInput = document.getElementById('filter_contaSearch');
     if (accountSearchInput && accountSearchInput._generateAccountOptions) {
         accountSearchInput._generateAccountOptions();
-        console.log('✅ Autocomplete atualizado');
     }
     
-    // 2. Depois, configurar a lupa para o modal (separadamente)
-    console.log('🔧 Configurando lupa de conta...');
     setupAccountSearchIcon();
     
     populateFilterOptions();
@@ -1159,28 +1495,21 @@ function updatePeriodSelectors() {
 }
 
 function populateFilterOptions() {
-    console.log('🔧 populateFilterOptions iniciada');
-    
     const dynamicFilters = document.querySelectorAll('#dynamicFilters select');
     
     dynamicFilters.forEach(select => {
         const field = select.dataset.field;
-        console.log(`Atualizando filtro: ${field}`);
         
-        // Get current filter values INCLUDING CONTA_SEARCH
         const currentFilters = {};
         
-        // Filtros de select
         dynamicFilters.forEach(filterSelect => {
             if (filterSelect.value) {
                 currentFilters[filterSelect.dataset.field] = filterSelect.value;
             }
         });
         
-        // INCLUIR filtro de conta se ativo
         const contaInput = document.getElementById('filter_contaSearch');
         if (contaInput && contaInput.value) {
-            console.log(`Incluindo filtro de conta: ${contaInput.value}`);
             currentFilters['CONTA_SEARCH'] = {
                 value: contaInput.value,
                 conta: contaInput.dataset.selectedConta,
@@ -1188,32 +1517,25 @@ function populateFilterOptions() {
             };
         }
         
-        console.log('Filtros ativos para cascata:', currentFilters);
-        
-        // Filter data based on ALL selections (including conta)
         let filteredDataForOptions = rawData;
         
         Object.keys(currentFilters).forEach(currentField => {
-            if (currentField !== field) { // Não filtrar pelo próprio campo
+            if (currentField !== field) {
                 if (currentField === 'CONTA_SEARCH') {
-                    // Aplicar filtro de conta
                     const searchFilter = currentFilters[currentField];
                     filteredDataForOptions = filteredDataForOptions.filter(item => {
                         const { contaSAP, description } = extractAccountInfo(item);
                         
-                        // Match exato se tem conta/descrição selecionada
                         if (searchFilter.conta || searchFilter.description) {
                             return (searchFilter.conta && String(searchFilter.conta) === String(contaSAP)) || 
                                    (searchFilter.description && searchFilter.description === description);
                         }
                         
-                        // Senão, buscar por texto
                         const searchText = searchFilter.value.toLowerCase();
                         return String(contaSAP).toLowerCase().includes(searchText) || 
                                String(description).toLowerCase().includes(searchText);
                     });
                 } else {
-                    // Filtros normais
                     filteredDataForOptions = filteredDataForOptions.filter(item => 
                         item[currentField] === currentFilters[currentField]
                     );
@@ -1221,17 +1543,10 @@ function populateFilterOptions() {
             }
         });
         
-        console.log(`Dados após filtros cascata para ${field}: ${rawData.length} → ${filteredDataForOptions.length}`);
-        
-        // Get unique values
         const uniqueValues = [...new Set(filteredDataForOptions.map(item => item[field]).filter(val => val))];
         
-        console.log(`Valores únicos para ${field}: ${uniqueValues.length} opções`);
-        
-        // Store current value
         const currentValue = select.value;
         
-        // Clear and populate options
         select.innerHTML = '<option value="">Todos</option>';
         
         uniqueValues.sort().forEach(value => {
@@ -1241,32 +1556,22 @@ function populateFilterOptions() {
             select.appendChild(option);
         });
         
-        // Restore value if still exists
         if (currentValue && uniqueValues.includes(currentValue)) {
             select.value = currentValue;
-        } else if (currentValue && !uniqueValues.includes(currentValue)) {
-            console.log(`⚠️ Valor "${currentValue}" não existe mais nas opções de ${field}`);
         }
     });
-    
-    console.log('✅ populateFilterOptions concluída');
 }
 
 function updateCascadingFilters() {
-    console.log('🔄 updateCascadingFilters chamada');
-    
-    // Atualizar selects normais
     populateFilterOptions();
     
-    // IMPORTANTE: Atualizar também as opções de conta quando outros filtros mudarem
     const accountSearchInput = document.getElementById('filter_contaSearch');
     if (accountSearchInput && accountSearchInput._generateAccountOptions) {
-        console.log('🔄 Atualizando opções de conta devido a mudança em filtros...');
         accountSearchInput._generateAccountOptions();
     }
 }
 
-// FUNÇÃO ATUALIZADA: Aplicar filtros incluindo busca de conta
+// ✅ CORREÇÃO PRINCIPAL: Função applyFilters atualizada
 function applyFilters() {
     console.log('🔄 === APLICANDO FILTROS ===');
     
@@ -1274,26 +1579,14 @@ function applyFilters() {
     const filterInputs = document.querySelectorAll('#dynamicFilters input[type="text"]');
     const filters = {};
     
-    console.log(`Encontrados ${filterSelects.length} selects e ${filterInputs.length} inputs`);
-    
-    // Filtros de select normais
     filterSelects.forEach(select => {
         if (select.value) {
             filters[select.dataset.field] = select.value;
-            console.log(`✅ Filtro select: ${select.dataset.field} = ${select.value}`);
         }
     });
     
-    // Filtro de busca de conta
     filterInputs.forEach(input => {
-        console.log(`Verificando input: ${input.id}, value: "${input.value}", field: ${input.dataset.field}`);
-        
         if (input.value && input.dataset.field === 'CONTA_SEARCH') {
-            console.log(`✅ Filtro conta encontrado: ${input.value}`, {
-                selectedConta: input.dataset.selectedConta,
-                selectedDescription: input.dataset.selectedDescription
-            });
-            
             filters.CONTA_SEARCH = {
                 value: input.value,
                 conta: input.dataset.selectedConta,
@@ -1302,49 +1595,24 @@ function applyFilters() {
         }
     });
     
-    console.log('📋 Todos os filtros a aplicar:', filters);
-    console.log(`📊 Dados antes do filtro: ${rawData.length} registros`);
-    
-    // Aplicar filtros
     filteredData = rawData.filter((item, index) => {
         const passes = Object.keys(filters).every(field => {
             if (field === 'CONTA_SEARCH') {
                 const searchFilter = filters[field];
                 const { contaSAP, description } = extractAccountInfo(item);
                 
-                // Debug da comparação
-                if (index < 3) { // Log apenas dos primeiros 3 itens para não poluir
-                    console.log(`Item ${index} - Conta: "${contaSAP}", Descrição: "${description}"`);
-                    console.log(`Filtro - Conta: "${searchFilter.conta}", Descrição: "${searchFilter.description}"`);
-                }
-                
-                // Se tem conta/descrição selecionada, fazer match exato
                 if (searchFilter.conta || searchFilter.description) {
                     const match = (searchFilter.conta && String(searchFilter.conta) === String(contaSAP)) || 
                                   (searchFilter.description && searchFilter.description === description);
-                    
-                    if (index < 3) {
-                        console.log(`Match exato: ${match}`);
-                    }
                     return match;
                 }
                 
-                // Senão, buscar por texto
                 const searchText = searchFilter.value.toLowerCase();
                 const textMatch = String(contaSAP).toLowerCase().includes(searchText) || 
                                  String(description).toLowerCase().includes(searchText);
-                
-                if (index < 3) {
-                    console.log(`Match por texto "${searchText}": ${textMatch}`);
-                }
                 return textMatch;
             } else {
-                // Filtros normais
-                const match = item[field] === filters[field];
-                if (index < 3) {
-                    console.log(`Filtro ${field}: item="${item[field]}" === filtro="${filters[field]}" = ${match}`);
-                }
-                return match;
+                return item[field] === filters[field];
             }
         });
         
@@ -1353,15 +1621,45 @@ function applyFilters() {
     
     console.log(`✅ RESULTADO: ${rawData.length} → ${filteredData.length} registros após filtros`);
     
-    // Atualizar dashboard primeiro
-    console.log('🔄 Atualizando dashboard...');
-    updateDashboard();
+    // ✅ CORREÇÃO: Verificar se estamos em modo de comparação
+    if (comparisonMode.active) {
+        // Se estamos em modo de comparação, re-aplicar comparação com dados filtrados
+        const periodMap = mapPeriodsByType(comparisonMode.type);
+        const periods1 = periodMap[comparisonMode.period1];
+        const periods2 = periodMap[comparisonMode.period2];
+        
+        if (periods1 && periods2) {
+            updateDetailTableWithComparison(periods1, periods2);
+            // Recalcular resumo com dados filtrados
+            showComparisonSummary(periods1, periods2);
+        }
+    } else {
+        // Modo normal: atualizar dashboard normalmente
+        updateDashboard();
+    }
     
-    // DEPOIS atualizar os outros filtros para mostrar apenas opções relacionadas
-    console.log('🔄 Atualizando filtros cascata (incluindo conta)...');
+    // ✅ CORREÇÃO: Sempre atualizar os cards e gráficos, independente do modo
+    updateSummaryCardsAndCharts();
+    
     setTimeout(() => {
         populateFilterOptions();
     }, 100);
+}
+
+// ✅ NOVA FUNÇÃO: Separar atualização de cards e gráficos
+function updateSummaryCardsAndCharts() {
+    const currentPeriod = document.getElementById('currentPeriod').value;
+    const previousPeriod = document.getElementById('previousPeriod').value;
+    
+    if (currentPeriod && previousPeriod && selectedSheet && filteredData.length > 0) {
+        // Sempre atualizar cards com dados dos períodos selecionados normalmente
+        calculateSummaryValues(currentPeriod, previousPeriod);
+        
+        // Sempre atualizar gráficos com dados filtrados
+        if (periods && periods.length > 0) {
+            updateCharts();
+        }
+    }
 }
 
 function clearFilters() {
@@ -1372,7 +1670,6 @@ function clearFilters() {
         select.value = '';
     });
     
-    // Limpar campos de busca
     const filterInputs = document.querySelectorAll('#dynamicFilters input[type="text"]');
     filterInputs.forEach(input => {
         input.value = '';
@@ -1397,6 +1694,19 @@ function clearFilters() {
     monthlyBtn.classList.add('active');
     quarterlyBtn.classList.remove('active');
     chartTitle.textContent = 'Evolução Mensal';
+    
+    // Reset comparison mode
+    comparisonMode = {
+        active: false,
+        type: 'mensal',
+        period1: null,
+        period2: null,
+        entityFilter: 'total',
+        minVariation: null,
+        maxResults: 250
+    };
+    
+    resetTableToNormalMode();
     
     rawData = [];
     filteredData = [];
@@ -1461,32 +1771,24 @@ function updateDashboard() {
     const previousPeriod = document.getElementById('previousPeriod').value;
     
     if (!currentPeriod || !previousPeriod || !selectedSheet) {
-        console.log('Dados insuficientes para atualizar dashboard:', {
-            currentPeriod: !!currentPeriod,
-            previousPeriod: !!previousPeriod,
-            selectedSheet: !!selectedSheet
-        });
+        console.log('Dados insuficientes para atualizar dashboard');
         return;
     }
     
-    // Verificar se temos dados válidos antes de continuar
     if (!filteredData || filteredData.length === 0) {
         console.log('Nenhum dado filtrado disponível');
         return;
     }
     
-    // Calculate summary values
-    calculateSummaryValues(currentPeriod, previousPeriod);
-    
-    // Update charts apenas se temos períodos válidos
-    if (periods && periods.length > 0) {
-        updateCharts();
-    } else {
-        console.log('Nenhum período disponível para gráficos');
+    // Calculate summary values apenas se não estamos em modo de comparação
+    if (!comparisonMode.active) {
+        calculateSummaryValues(currentPeriod, previousPeriod);
+        filterDetailTable();
     }
     
-    // Update details table
-    filterDetailTable();
+    if (periods && periods.length > 0) {
+        updateCharts();
+    }
 }
 
 function updateSummaryCard(entity, currentValue, previousValue, variation) {
@@ -1516,7 +1818,6 @@ function updateSummaryCard(entity, currentValue, previousValue, variation) {
 }
 
 function updateCharts() {
-    // Verificar se temos dados suficientes antes de tentar atualizar
     if (!periods || periods.length === 0 || !filteredData || filteredData.length === 0) {
         console.log('Dados insuficientes para atualizar gráficos');
         return;
@@ -1532,25 +1833,20 @@ function updateEvolutionChart() {
         return;
     }
     
-    // Verificações básicas
     if (!periods || periods.length === 0) {
-        console.log('Nenhum período disponível para o gráfico');
         chartElement.innerHTML = '<div class="no-data">Selecione uma aba e períodos para visualizar o gráfico</div>';
         return;
     }
     
     if (!filteredData || filteredData.length === 0) {
-        console.log('Nenhum dado filtrado disponível');
         chartElement.innerHTML = '<div class="no-data">Nenhum dado disponível para o gráfico</div>';
         return;
     }
 
-    // Verificar se temos períodos selecionados
     const currentPeriod = document.getElementById('currentPeriod')?.value;
     const previousPeriod = document.getElementById('previousPeriod')?.value;
     
     if (!currentPeriod || !previousPeriod) {
-        console.log('Períodos não selecionados');
         chartElement.innerHTML = '<div class="no-data">Selecione os períodos atual e anterior para visualizar o gráfico</div>';
         return;
     }
@@ -1619,13 +1915,11 @@ function updateEvolutionChart() {
             categories = periods.map(formatPeriod);
         }
         
-        // Verificar se temos dados válidos
         if (!seriesData || seriesData.length === 0 || seriesData.every(serie => !serie.data || serie.data.length === 0)) {
             chartElement.innerHTML = '<div class="no-data">Dados insuficientes para gerar o gráfico</div>';
             return;
         }
         
-        // Destroy existing chart if any
         if (charts.evolution) {
             try {
                 charts.evolution.destroy();
@@ -1635,10 +1929,8 @@ function updateEvolutionChart() {
             }
         }
         
-        // Clear the chart container
         chartElement.innerHTML = '';
         
-        // Aguardar um pouco antes de criar o novo gráfico
         setTimeout(() => {
             try {
                 const options = {
@@ -1709,6 +2001,7 @@ function updateEvolutionChart() {
                             stops: [0, 100]
                         }
                     },
+                    // ✅ TOOLTIP RESTAURADO COM VARIAÇÕES ENTRE PERÍODOS
                     tooltip: {
                         shared: true,
                         intersect: false,
@@ -1719,47 +2012,65 @@ function updateEvolutionChart() {
                             const entityColors = ['#0066cc', '#ffab00', '#00c853'];
                             
                             let tooltipContent = `
-                                <div style="background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; min-width: 200px;">
+                                <div style="background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; min-width: 250px;">
                                     <div style="font-weight: 600; margin-bottom: 8px; color: #374151; font-size: 14px;">
                                         ${currentLabel}
                                     </div>
                             `;
                             
+                            // Mostrar valores atuais
                             series.forEach((serieData, index) => {
-                                const value = serieData[dataPointIndex];
+                                const currentValue = serieData[dataPointIndex];
                                 const entityName = entityNames[index];
-                                const entityKey = entities[index];
                                 const color = entityColors[index];
                                 
-                                const yoyData = calculateYoYVariation(currentLabel, entityKey, isQuarterly);
+                                // Calcular variação em relação ao período anterior se existir
+                                let variationText = '';
+                                if (dataPointIndex > 0) {
+                                    const previousValue = serieData[dataPointIndex - 1];
+                                    const variation = previousValue !== 0 ? ((currentValue - previousValue) / previousValue) * 100 : 0;
+                                    const variationColor = variation >= 0 ? '#00c853' : '#ff3d57';
+                                    const variationSymbol = variation >= 0 ? '↗' : '↘';
+                                    
+                                    variationText = `<span style="color: ${variationColor}; font-size: 11px; margin-left: 4px;">
+                                        ${variationSymbol} ${Math.abs(variation).toFixed(1)}%
+                                    </span>`;
+                                }
                                 
                                 tooltipContent += `
                                     <div style="display: flex; align-items: center; margin: 4px 0;">
                                         <span style="width: 12px; height: 12px; background-color: ${color}; border-radius: 50%; margin-right: 8px;"></span>
                                         <span style="color: #374151; font-size: 13px; flex: 1;">
-                                            <strong>${entityName}:</strong> ${formatCurrency(value)}
+                                            <strong>${entityName}:</strong> ${formatCurrency(currentValue)}${variationText}
                                         </span>
                                     </div>
                                 `;
-                                
-                                if (yoyData.hasComparison) {
-                                    const variationColor = yoyData.variation >= 0 ? '#10b981' : '#ef4444';
-                                    const variationIcon = yoyData.variation >= 0 ? '↗' : '↘';
-                                    
-                                    tooltipContent += `
-                                        <div style="margin-left: 20px; font-size: 11px; color: #6b7280; margin-top: 2px;">
-                                            vs ${yoyData.previousLabel}: 
-                                            <span style="color: ${variationColor}; font-weight: 600;">
-                                                ${variationIcon} ${Math.abs(yoyData.variation).toFixed(1)}%
-                                            </span>
-                                            <br>
-                                            <span style="font-size: 10px;">
-                                                (${formatCurrencyCompact(yoyData.previousValue)})
-                                            </span>
-                                        </div>
-                                    `;
-                                }
                             });
+                            
+                            // Mostrar comparação com período anterior se existir
+                            if (dataPointIndex > 0) {
+                                const previousLabel = categories[dataPointIndex - 1];
+                                tooltipContent += `
+                                    <div style="border-top: 1px solid #e5e7eb; margin-top: 8px; padding-top: 6px;">
+                                        <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">
+                                            vs ${previousLabel}
+                                        </div>
+                                `;
+                                
+                                // Calcular total da variação
+                                const currentTotal = series.reduce((sum, serieData) => sum + serieData[dataPointIndex], 0);
+                                const previousTotal = series.reduce((sum, serieData) => sum + serieData[dataPointIndex - 1], 0);
+                                const totalVariation = previousTotal !== 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : 0;
+                                const totalVariationColor = totalVariation >= 0 ? '#00c853' : '#ff3d57';
+                                const totalVariationSymbol = totalVariation >= 0 ? '↗' : '↘';
+                                
+                                tooltipContent += `
+                                        <div style="font-size: 12px; color: ${totalVariationColor}; font-weight: 600;">
+                                            ${totalVariationSymbol} Total: ${formatCurrency(currentTotal - previousTotal)} (${Math.abs(totalVariation).toFixed(1)}%)
+                                        </div>
+                                    </div>
+                                `;
+                            }
                             
                             tooltipContent += '</div>';
                             return tooltipContent;
@@ -1805,59 +2116,6 @@ function updateEvolutionChart() {
     } catch (error) {
         console.error('Erro geral no gráfico:', error);
         chartElement.innerHTML = '<div class="no-data">Erro ao processar dados do gráfico</div>';
-    }
-}
-
-function calculateYoYVariation(currentLabel, entity, isQuarterly = false) {
-    try {
-        if (isQuarterly) {
-            const [quarter, year] = currentLabel.split(' ');
-            const previousYear = (parseInt(year) - 1).toString();
-            const previousLabel = `${quarter} ${previousYear}`;
-            
-            const quarterlyData = calculateQuarterlyData();
-            const currentValue = quarterlyData[currentLabel] ? quarterlyData[currentLabel][entity] : 0;
-            const previousValue = quarterlyData[previousLabel] ? quarterlyData[previousLabel][entity] : null;
-            
-            if (previousValue !== null && previousValue !== 0) {
-                const variation = ((currentValue - previousValue) / previousValue) * 100;
-                return {
-                    hasComparison: true,
-                    variation: variation,
-                    previousLabel: previousLabel,
-                    previousValue: previousValue,
-                    currentValue: currentValue
-                };
-            }
-        } else {
-            const [month, year] = currentLabel.split('/');
-            const previousYear = (parseInt(year) - 1).toString();
-            const previousLabel = `${month}/${previousYear}`;
-            
-            const currentPeriod = periods.find(p => formatPeriod(p) === currentLabel);
-            const previousPeriod = periods.find(p => formatPeriod(p) === previousLabel);
-            
-            if (currentPeriod && previousPeriod) {
-                const currentValue = calculateTotal(entity, currentPeriod);
-                const previousValue = calculateTotal(entity, previousPeriod);
-                
-                if (previousValue !== 0) {
-                    const variation = ((currentValue - previousValue) / previousValue) * 100;
-                    return {
-                        hasComparison: true,
-                        variation: variation,
-                        previousLabel: previousLabel,
-                        previousValue: previousValue,
-                        currentValue: currentValue
-                    };
-                }
-            }
-        }
-        
-        return { hasComparison: false };
-    } catch (error) {
-        console.error('Error calculating YoY variation:', error);
-        return { hasComparison: false };
     }
 }
 
@@ -2040,9 +2298,18 @@ function exportTableToExcel() {
     
     if (!currentPeriod || !previousPeriod || !selectedSheet) return;
     
-    const ws = XLSX.utils.aoa_to_sheet([
-        ['Conta SAP', 'Descrição', 'Valor Anterior', 'Valor Atual', 'Variação', 'Variação %']
-    ]);
+    // Determinar headers baseado no modo de comparação
+    let headers, filename;
+    if (comparisonMode.active) {
+        headers = ['Conta SAP', 'Descrição', comparisonMode.period2, comparisonMode.period1, 'Variação', 'Variação %'];
+        filename = `comparacao-${comparisonMode.type}-${comparisonMode.period1}-vs-${comparisonMode.period2}-${new Date().toISOString().split('T')[0]}.xlsx`;
+    } else {
+        headers = ['Conta SAP', 'Descrição', 'Valor Anterior', 'Valor Atual', 'Variação', 'Variação %'];
+        const entityName = entityFilter === 'total' ? 'consolidado-total' : entityFilter;
+        filename = `detalhamento-contas-${entityName}-${new Date().toISOString().split('T')[0]}.xlsx`;
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     
     const rows = filteredData.map(item => {
         const currentValues = item.values && item.values[currentPeriod] ? item.values[currentPeriod] : {};
@@ -2075,7 +2342,6 @@ function exportTableToExcel() {
     
     XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A2' });
     
-    const numberFormat = '0.00';
     const currencyFormat = '"R$ "#,##0.00';
     const percentFormat = '0.00%';
     
@@ -2093,9 +2359,6 @@ function exportTableToExcel() {
     
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Detalhamento');
-    
-    const entityName = entityFilter === 'total' ? 'consolidado-total' : entityFilter;
-    const filename = `detalhamento-contas-${entityName}-${new Date().toISOString().split('T')[0]}.xlsx`;
     
     XLSX.writeFile(wb, filename);
 }

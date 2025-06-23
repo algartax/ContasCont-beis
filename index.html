@@ -98,11 +98,11 @@
                             <div class="card-content">
                                 <div class="value-comparison">
                                     <div class="value-item">
-                                        <label>Atual</label>
+                                        <label>Mês Atual</label>
                                         <span id="telecomCurrent">R$ 0,00</span>
                                     </div>
                                     <div class="value-item">
-                                        <label>Anterior</label>
+                                        <label>Mês Anterior</label>
                                         <span id="telecomPrevious">R$ 0,00</span>
                                     </div>
                                 </div>
@@ -119,11 +119,11 @@
                             <div class="card-content">
                                 <div class="value-comparison">
                                     <div class="value-item">
-                                        <label>Atual</label>
+                                        <label>Mês Atual</label>
                                         <span id="vogelCurrent">R$ 0,00</span>
                                     </div>
                                     <div class="value-item">
-                                        <label>Anterior</label>
+                                        <label>Mês Anterior</label>
                                         <span id="vogelPrevious">R$ 0,00</span>
                                     </div>
                                 </div>
@@ -139,12 +139,12 @@
                             </div>
                             <div class="card-content">
                                 <div class="value-comparison">
-                                    <div class="value-item">
-                                        <label>Atual</label>
+                                    <div class="value-item">       
+                                        <label>Mês Atual</label>
                                         <span id="consolidadoCurrent">R$ 0,00</span>
                                     </div>
                                     <div class="value-item">
-                                        <label>Anterior</label>
+                                        <label>Mês Anterior</label>
                                         <span id="consolidadoPrevious">R$ 0,00</span>
                                     </div>
                                 </div>
@@ -168,8 +168,11 @@
                                             Trimestral
                                         </button>
                                     </div>
-                                    <button class="btn btn-icon" title="Download" id="downloadChart">
+                                    <button class="btn btn-icon" title="Download do Gráfico" id="downloadChart">
                                         <i class="fas fa-download"></i>
+                                    </button>
+                                    <button class="btn btn-icon" title="Exportar Excel do Gráfico" id="exportChartToExcel">
+                                        <i class="fas fa-file-excel"></i>
                                     </button>
                                 </div>
                             </div>
@@ -178,7 +181,6 @@
                     </section>
                 </div>
 
-                <!-- Details Table -->
                 <section class="details-section">
                     <div class="details-header">
                         <h3>Detalhamento por Conta</h3>
@@ -189,10 +191,10 @@
                             </div>
                             <div class="select-wrapper compact">
                                 <select id="entityFilter">
-                                    <option value="total">Total</option>
+                                 <!--   <option value="total">Total</option>   -->
                                     <option value="telecom">Telecom</option>
                                     <option value="vogel">Vogel</option>
-                                    <option value="consolidado">Somado</option>
+                                    <option value="consolidado" selected>Somado</option>
                                 </select>
                                 <i class="fas fa-chevron-down"></i>
                             </div>
@@ -217,10 +219,11 @@
                         <table id="detailsTable" class="details-table">
                             <thead>
                                 <tr>
+                                    <th>Empresa</th>
                                     <th>Conta SAP</th>
                                     <th>Descrição</th>
-                                    <th>Valor Anterior</th>
-                                    <th>Valor Atual</th>
+                                    <th>Valor Mês Anterior</th>
+                                    <th>Valor Mês Atual</th>
                                     <th>Variação</th>
                                     <th>Var %</th>
                                 </tr>
@@ -458,6 +461,8 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Scripts -->
+    <script src="script1.js"></script>
+    <script src="script2.js"></script>
 </body>
 </html>

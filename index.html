@@ -461,8 +461,127 @@
         </div>
     </div>
 
+    <!-- Modal de Export Consolidado - NOVO -->
+    <div class="modal consolidated-export-modal" id="consolidatedExportModal">
+        <div class="modal-content consolidated-export-modal-content">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-file-export"></i>
+                    Export Consolidado - Todas as Contas
+                </h2>
+                <button class="modal-close" id="closeConsolidatedExportModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body consolidated-export-modal-body">
+                
+                <!-- Modo de Comparação -->
+                <div class="export-section">
+                    <h3>
+                        <i class="fas fa-cogs"></i>
+                        Modo de Análise
+                    </h3>
+                    <div class="comparison-mode-buttons">
+                        <button class="btn comparison-mode-btn active" data-comparison-mode="sequential">
+                            <i class="fas fa-arrow-right"></i>
+                            <div class="mode-info">
+                                <span class="mode-title">Sequencial</span>
+                                <span class="mode-desc">Períodos consecutivos com variações</span>
+                            </div>
+                        </button>
+                        <button class="btn comparison-mode-btn" data-comparison-mode="comparative">
+                            <i class="fas fa-balance-scale"></i>
+                            <div class="mode-info">
+                                <span class="mode-title">Comparativo</span>
+                                <span class="mode-desc">Apenas 2 períodos específicos</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tipo de Agrupamento -->
+                <div class="export-section export-period-section">
+                    <h3>
+                        <i class="fas fa-calendar-alt"></i>
+                        Agrupamento por Período
+                    </h3>
+                    <div class="export-period-buttons">
+                        <button class="btn export-period-btn active" data-period-type="mensal">
+                            <i class="fas fa-calendar-day"></i>
+                            Mensal
+                        </button>
+                        <button class="btn export-period-btn" data-period-type="bimestral">
+                            <i class="fas fa-calendar-week"></i>
+                            Bimestral
+                        </button>
+                        <button class="btn export-period-btn" data-period-type="trimestral">
+                            <i class="fas fa-calendar"></i>
+                            Trimestral
+                        </button>
+                        <button class="btn export-period-btn" data-period-type="semestral">
+                            <i class="fas fa-calendar-times"></i>
+                            Semestral
+                        </button>
+                        <button class="btn export-period-btn" data-period-type="anual">
+                            <i class="fas fa-calendar-check"></i>
+                            Anual
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seleção de Períodos -->
+                <div class="export-section">
+                    <h3>
+                        <i class="fas fa-clock"></i>
+                        Intervalo de Períodos
+                    </h3>
+                    <div class="export-period-selectors">
+                        <div class="period-group">
+                            <label for="exportStartPeriod">
+                                <i class="fas fa-calendar-plus"></i>
+                                Período Inicial
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="exportStartPeriod">
+                                    <option value="">Selecione o período inicial...</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="period-group">
+                            <label for="exportEndPeriod">
+                                <i class="fas fa-calendar-minus"></i>
+                                Período Final
+                            </label>
+                            <div class="select-wrapper">
+                                <select id="exportEndPeriod">
+                                    <option value="">Selecione o período final...</option>
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="export-actions">
+                    <button class="btn btn-secondary" id="clearExportBtn">
+                        <i class="fas fa-eraser"></i>
+                        Limpar Configurações
+                    </button>
+                    <button class="btn btn-primary" id="executeExportBtn">
+                        <i class="fas fa-download"></i>
+                        Gerar Export Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="script1.js"></script>
     <script src="script2.js"></script>
+    <script src="script3.js"></script>
 </body>
 </html>

@@ -1204,85 +1204,42 @@ function generateFileFilterInfo() {
 }
 
 // CORRIGIDA: Função exportTableToExcel com suporte para modo expandido
+// FUNÇÃO CORRIGIDA: Exportar exatamente como mostrado na tabela
 function exportTableToExcel() {
     const currentPeriod = document.getElementById('currentPeriod').value;
     const previousPeriod = document.getElementById('previousPeriod').value;
     const entityFilter = document.getElementById('entityFilter').value;
+    const descriptionFilter = document.getElementById('descriptionFilter').value.toLowerCase();
+    const sortFilter = document.getElementById('sortFilter').value;
     
     if (!currentPeriod || !previousPeriod || !selectedSheet) {
         alert('❌ Selecione os períodos antes de exportar');
         return;
     }
     
-    console.log('📋 === EXPORTANDO TABELA ===');
+    console.log('📋 === EXPORTANDO TABELA EXATAMENTE COMO MOSTRADA ===');
     console.log(`📊 Processando ${filteredData.length} registros filtrados`);
     console.log(`📋 Entidade: ${entityFilter}`);
+    console.log(`🔍 Filtro descrição: "${descriptionFilter}"`);
+    console.log(`📊 Ordenação: ${sortFilter}`);
     
     try {
         let headers, filename, rows;
         
+        // ============================================
+        // MODO COMPARAÇÃO - Replicar exatamente updateDetailTableWithComparison
+        // ============================================
         if (comparisonMode.active) {
+            // Headers da comparação com nomes dos períodos reais
             headers = ['Empresa', 'Conta SAP', 'Descrição', comparisonMode.period2, comparisonMode.period1, 'Variação (R$)', 'Variação (%)'];
             filename = `algar-comparacao-${comparisonMode.type}-${comparisonMode.period1}-vs-${comparisonMode.period2}-${new Date().toISOString().split('T')[0]}.xlsx`;
             
-            // Para comparações, usar dados filtrados existentes
-            rows = filteredData.map(item => {
-                const { contaSAP, description } = extractAccountInfo(item);
-                const entityName = comparisonMode.entityFilter === 'total' ? 'Consolidado' : 
-                                 comparisonMode.entityFilter === 'consolidado' ? 'Somado' :
-                                 comparisonMode.entityFilter.charAt(0).toUpperCase() + comparisonMode.entityFilter.slice(1);
-                
-                // Calcular valores baseado no modo de comparação
-                const periodMap = mapPeriodsByType(comparisonMode.type);
-                const periods1 = periodMap[comparisonMode.period1];
-                const periods2 = periodMap[comparisonMode.period2];
-                
-                let value1 = 0, value2 = 0;
-                
-                if (comparisonMode.entityFilter === 'total') {
-                    periods1.forEach(p => {
-                        if (item.values && item.values[p]) {
-                            value1 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
-                        }
-                    });
-                    periods2.forEach(p => {
-                        if (item.values && item.values[p]) {
-                            value2 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
-                        }
-                    });
-                } else {
-                    periods1.forEach(p => {
-                        value1 += safeGetItemValue(item, p, comparisonMode.entityFilter);
-                    });
-                    periods2.forEach(p => {
-                        value2 += safeGetItemValue(item, p, comparisonMode.entityFilter);
-                    });
-                }
-                
-                const variation = value1 - value2;
-                const variationPercent = value2 !== 0 ? (variation / value2) * 100 : 0;
-                
-                return [
-                    entityName,
-                    contaSAP || '-',
-                    description || '-',
-                    value2,
-                    value1,
-                    variation,
-                    variationPercent / 100
-                ];
-            });
+            console.log('📋 Exportando modo COMPARAÇÃO');
             
-        } else {
-            headers = ['Empresa', 'Conta SAP', 'Descrição', 'Valor Mês Anterior (R$)', 'Valor Mês Atual (R$)', 'Variação (R$)', 'Variação (%)'];
-            const entityName = entityFilter === 'total' ? 'consolidado-total' : entityFilter;
-            const filterInfo = generateFileFilterInfo();
-            const timestamp = new Date().toISOString().split('T')[0];
-            filename = `algar-detalhamento-${entityName}${filterInfo}-${timestamp}.xlsx`;
-            
-            // Verificar se deve usar modo expandido
+            // Se está no modo expandido (conta específica) em comparação
             if (shouldShowExpandedFormat() && filteredData.length > 0) {
-                // MODO EXPANDIDO: 3 linhas para as 3 empresas
+                console.log('  🔄 Modo expandido - 3 empresas para conta específica');
+                
                 const item = filteredData[0];
                 const { contaSAP, description } = extractAccountInfo(item);
                 
@@ -1292,6 +1249,178 @@ function exportTableToExcel() {
                     { key: 'consolidado', name: 'Somado' }
                 ];
                 
+                const periodMap = mapPeriodsByType(comparisonMode.type);
+                const periods1 = periodMap[comparisonMode.period1];
+                const periods2 = periodMap[comparisonMode.period2];
+                
+                rows = entities.map(entity => {
+                    let value1 = 0, value2 = 0;
+                    
+                    periods1.forEach(p => {
+                        value1 += safeGetItemValue(item, p, entity.key);
+                    });
+                    periods2.forEach(p => {
+                        value2 += safeGetItemValue(item, p, entity.key);
+                    });
+                    
+                    const variation = value1 - value2;
+                    const variationPercent = value2 !== 0 ? (variation / value2) * 100 : 0;
+                    
+                    return [
+                        entity.name,
+                        contaSAP || '-',
+                        description || '-',
+                        value2,
+                        value1,
+                        variation,
+                        variationPercent / 100
+                    ];
+                });
+                
+            } else {
+                // Modo normal de comparação - múltiplas contas
+                console.log('  📊 Modo normal de comparação');
+                
+                const periodMap = mapPeriodsByType(comparisonMode.type);
+                const periods1 = periodMap[comparisonMode.period1];
+                const periods2 = periodMap[comparisonMode.period2];
+                
+                // Calcular dados para cada conta (igual ao updateDetailTableWithComparison)
+                let comparisonData = filteredData.map(item => {
+                    const { contaSAP, description } = extractAccountInfo(item);
+                    
+                    let value1 = 0, value2 = 0;
+                    
+                    if (comparisonMode.entityFilter === 'total') {
+                        periods1.forEach(p => {
+                            if (item.values && item.values[p]) {
+                                value1 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
+                            }
+                        });
+                        periods2.forEach(p => {
+                            if (item.values && item.values[p]) {
+                                value2 += Object.values(item.values[p]).reduce((a, b) => a + b, 0);
+                            }
+                        });
+                    } else {
+                        periods1.forEach(p => {
+                            value1 += safeGetItemValue(item, p, comparisonMode.entityFilter);
+                        });
+                        periods2.forEach(p => {
+                            value2 += safeGetItemValue(item, p, comparisonMode.entityFilter);
+                        });
+                    }
+                    
+                    const variation = value1 - value2;
+                    const variationPercent = value2 !== 0 ? (variation / value2) * 100 : 0;
+                    
+                    return {
+                        contaSAP,
+                        description,
+                        value1,
+                        value2,
+                        variation,
+                        variationPercent,
+                        absVariationPercent: Math.abs(variationPercent)
+                    };
+                });
+                
+                // Aplicar filtro de variação mínima se especificado
+                if (comparisonMode.minVariation) {
+                    comparisonData = comparisonData.filter(item => 
+                        item.absVariationPercent >= comparisonMode.minVariation
+                    );
+                }
+                
+                // Ordenar por maior variação absoluta (igual ao código original)
+                comparisonData.sort((a, b) => b.absVariationPercent - a.absVariationPercent);
+                
+                // Limitar resultados
+                if (comparisonMode.maxResults !== 'all') {
+                    comparisonData = comparisonData.slice(0, parseInt(comparisonMode.maxResults));
+                }
+                
+                // Aplicar filtro de descrição/conta se houver
+                if (descriptionFilter) {
+                    comparisonData = comparisonData.filter(item => {
+                        const descMatch = item.description && item.description.toLowerCase().includes(descriptionFilter);
+                        const contaMatch = item.contaSAP && item.contaSAP.toString().toLowerCase().includes(descriptionFilter);
+                        return descMatch || contaMatch;
+                    });
+                }
+                
+                rows = comparisonData.map(item => {
+                    const entityName = comparisonMode.entityFilter === 'total' ? 'Consolidado' : 
+                                     comparisonMode.entityFilter === 'consolidado' ? 'Somado' :
+                                     comparisonMode.entityFilter.charAt(0).toUpperCase() + comparisonMode.entityFilter.slice(1);
+                    
+                    return [
+                        entityName,
+                        item.contaSAP || '-',
+                        item.description || '-',
+                        item.value2,
+                        item.value1,
+                        item.variation,
+                        item.variationPercent / 100
+                    ];
+                });
+            }
+            
+        } else {
+            // ============================================
+            // MODO NORMAL - Replicar exatamente updateDetailTableContent
+            // ============================================
+            console.log('📋 Exportando modo NORMAL');
+            
+            headers = ['Empresa', 'Conta SAP', 'Descrição', 'Valor Mês Anterior (R$)', 'Valor Mês Atual (R$)', 'Variação (R$)', 'Variação (%)'];
+            const entityName = entityFilter === 'total' ? 'consolidado-total' : entityFilter;
+            const filterInfo = generateFileFilterInfo();
+            const timestamp = new Date().toISOString().split('T')[0];
+            filename = `algar-detalhamento-${entityName}${filterInfo}-${timestamp}.xlsx`;
+            
+            // Aplicar EXATAMENTE os mesmos filtros que a tabela usa
+            let tableData = [...filteredData];
+            
+            // Filtro de descrição/conta (igual ao filterDetailTable)
+            if (descriptionFilter) {
+                tableData = tableData.filter(item => {
+                    const { contaSAP, description } = extractAccountInfo(item);
+                    const contaMatch = contaSAP && contaSAP.toString().toLowerCase().includes(descriptionFilter);
+                    const descMatch = description && description.toLowerCase().includes(descriptionFilter);
+                    return contaMatch || descMatch;
+                });
+            }
+            
+            // Ordenação (igual ao filterDetailTable)
+            switch (sortFilter) {
+                case 'variation_desc':
+                    tableData.sort((a, b) => Math.abs(getItemVariation(b, currentPeriod, previousPeriod, entityFilter)) - Math.abs(getItemVariation(a, currentPeriod, previousPeriod, entityFilter)));
+                    break;
+                case 'variation_asc':
+                    tableData.sort((a, b) => Math.abs(getItemVariation(a, currentPeriod, previousPeriod, entityFilter)) - Math.abs(getItemVariation(b, currentPeriod, previousPeriod, entityFilter)));
+                    break;
+                case 'value_desc':
+                    tableData.sort((a, b) => getCurrentEntityValue(b, currentPeriod, entityFilter) - getCurrentEntityValue(a, currentPeriod, entityFilter));
+                    break;
+                case 'value_asc':
+                    tableData.sort((a, b) => getCurrentEntityValue(a, currentPeriod, entityFilter) - getCurrentEntityValue(b, currentPeriod, entityFilter));
+                    break;
+            }
+            
+            // Verificar se deve usar modo expandido
+            if (shouldShowExpandedFormat() && tableData.length > 0) {
+                console.log('  🔄 Modo expandido - 3 empresas para conta específica');
+                
+                const item = tableData[0];
+                const { contaSAP, description } = extractAccountInfo(item);
+                
+                const entities = [
+                    { key: 'telecom', name: 'Telecom' },
+                    { key: 'vogel', name: 'Vogel' },
+                    { key: 'consolidado', name: 'Somado' }
+                ];
+                
+                // SEMPRE mostrar as 3 empresas quando conta específica (igual ao código)
                 rows = entities.map(entity => {
                     const currentValues = item.values && item.values[currentPeriod] ? item.values[currentPeriod] : {};
                     const previousValues = item.values && item.values[previousPeriod] ? item.values[previousPeriod] : {};
@@ -1313,8 +1442,13 @@ function exportTableToExcel() {
                 });
                 
             } else {
-                // MODO NORMAL: Uma linha por conta
-                rows = filteredData.map(item => {
+                console.log('  📊 Modo normal - uma linha por conta');
+                
+                // Limitar a 2000 registros como na tabela
+                const maxRows = 2000;
+                const dataToExport = tableData.slice(0, maxRows);
+                
+                rows = dataToExport.map(item => {
                     const currentValues = item.values && item.values[currentPeriod] ? item.values[currentPeriod] : {};
                     const previousValues = item.values && item.values[previousPeriod] ? item.values[previousPeriod] : {};
                     
@@ -1347,15 +1481,37 @@ function exportTableToExcel() {
                         variationPercent / 100
                     ];
                 });
+                
+                // Adicionar nota se limitamos os registros
+                if (tableData.length > maxRows) {
+                    // Adicionar linha informativa
+                    rows.push([
+                        '',
+                        '',
+                        `Mostrando ${maxRows} de ${tableData.length} registros`,
+                        '',
+                        '',
+                        '',
+                        ''
+                    ]);
+                }
             }
         }
         
+        // Se não há dados, adicionar linha informativa
+        if (!rows || rows.length === 0) {
+            rows = [['', '', 'Nenhum dado encontrado com os filtros aplicados', '', '', '', '']];
+        }
+        
+        // Criar planilha
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A2' });
         
+        // Formatação
         const currencyFormat = '"R$ "#,##0.00_);("R$ "#,##0.00)';
         const percentFormat = '0.00%';
         
+        // Aplicar formato de moeda nas colunas de valores e variação
         ['D', 'E', 'F'].forEach(col => {
             for (let i = 2; i <= rows.length + 1; i++) {
                 if (ws[col + i]) {
@@ -1364,45 +1520,46 @@ function exportTableToExcel() {
             }
         });
         
+        // Aplicar formato de porcentagem na coluna de variação %
         for (let i = 2; i <= rows.length + 1; i++) {
             if (ws['G' + i]) {
                 ws['G' + i].z = percentFormat;
             }
         }
         
+        // Ajustar largura das colunas
         ws['!cols'] = [
             { wch: 12 },  // Empresa
             { wch: 15 },  // Conta SAP
-            { wch: 40 },  // Descrição
+            { wch: 45 },  // Descrição
             { wch: 18 },  // Valor Anterior
             { wch: 18 },  // Valor Atual
             { wch: 18 },  // Variação
             { wch: 12 }   // Var %
         ];
         
+        // Criar workbook e adicionar metadados
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Detalhamento por Conta');
         
         wb.Props = {
             Title: 'Detalhamento por Conta - Algar',
-            Subject: 'Análise Financeira Detalhada',
+            Subject: comparisonMode.active ? 'Análise Comparativa' : 'Análise Financeira Detalhada',
             Author: 'Dashboard Analytics Algar',
             CreatedDate: new Date()
         };
         
+        // Gerar arquivo
         XLSX.writeFile(wb, filename);
         
-        console.log('✅ Excel da tabela exportado:', filename);
+        console.log('✅ Excel da tabela exportado (espelho exato):', filename);
+        console.log(`   📊 Registros exportados: ${rows.length}`);
         
     } catch (error) {
         console.error('❌ Erro ao exportar tabela:', error);
         alert('❌ Erro ao exportar tabela. Verifique os dados e tente novamente.');
     }
 }
-
-// ============================================
-// FUNÇÃO ESPECIAL PARA LIMPEZA DE GRÁFICOS
-// ============================================
 
 // Função para ser chamada quando mudar de aba ou limpar filtros
 function forceChartCleanup() {
@@ -1443,3 +1600,4 @@ function handleChartResize() {
         }
     }
 }
+

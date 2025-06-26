@@ -318,9 +318,18 @@ button {
 }
 
 .upload-trigger {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
     margin-top: 20px;
     padding-top: 14px;
     border-top: 1px solid var(--gray-200);
+}
+
+.upload-trigger .btn {
+    flex: 1;
+    padding: 6px 11px;
+    font-size: 0.8rem;
 }
 
 /* Main Content */
@@ -1436,4 +1445,512 @@ button {
 
 .hidden {
     display: none;
+}
+
+/* ============================================ */
+/* ESTILOS PARA MODAL DE EXPORT CONSOLIDADO */
+/* ============================================ */
+
+.consolidated-export-modal .modal-content {
+    width: 1000px;
+    max-width: 95vw;
+    max-height: 95vh;
+    overflow: hidden;
+}
+
+.consolidated-export-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.consolidated-export-modal-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow-y: auto;
+    max-height: calc(95vh - 120px);
+}
+
+.export-section {
+    padding: 24px 30px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.export-section:last-child {
+    border-bottom: none;
+}
+
+.export-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.export-section h3 i {
+    color: var(--primary-color);
+}
+
+/* ============================================ */
+/* BOTÕES DE MODO DE COMPARAÇÃO */
+/* ============================================ */
+
+.comparison-mode-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.comparison-mode-btn {
+    padding: 20px;
+    background-color: var(--white);
+    color: var(--text-secondary);
+    border: 2px solid var(--gray-300);
+    border-radius: var(--radius-lg);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    min-height: 80px;
+}
+
+.comparison-mode-btn:hover {
+    border-color: var(--primary-light);
+    background-color: var(--gray-50);
+    color: var(--text-primary);
+}
+
+.comparison-mode-btn.active {
+    background-color: rgba(0, 102, 204, 0.08);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.comparison-mode-btn i {
+    font-size: 1.8rem;
+    min-width: 30px;
+}
+
+.mode-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mode-title {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.mode-desc {
+    font-size: 0.875rem;
+    opacity: 0.8;
+    line-height: 1.3;
+}
+
+/* ============================================ */
+/* BOTÕES DE PERÍODO */
+/* ============================================ */
+
+.export-period-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.export-period-btn {
+    padding: 14px 18px;
+    background-color: var(--gray-100);
+    color: var(--text-secondary);
+    border: 2px solid transparent;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    flex-direction: column;
+    gap: 6px;
+    min-height: 70px;
+}
+
+.export-period-btn:hover {
+    background-color: var(--gray-200);
+    color: var(--text-primary);
+}
+
+.export-period-btn.active {
+    background-color: rgba(0, 102, 204, 0.1);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.export-period-btn i {
+    font-size: 1.3rem;
+    margin-bottom: 4px;
+}
+
+/* ============================================ */
+/* SELETORES DE PERÍODO */
+/* ============================================ */
+
+.export-period-selectors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.period-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.period-group label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.period-group label i {
+    color: var(--primary-color);
+}
+
+/* ============================================ */
+/* OPÇÕES DE EXPORT */
+/* ============================================ */
+
+.export-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option-group label:not(.checkbox-label) {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    padding: 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.checkbox-label:hover {
+    background-color: var(--gray-50);
+    border-color: var(--primary-light);
+}
+
+.checkbox-label input[type="checkbox"] {
+    display: none;
+}
+
+.checkmark {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--gray-400);
+    border-radius: 4px;
+    position: relative;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkmark::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.option-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.option-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+/* ============================================ */
+/* PREVIEW DO EXPORT */
+/* ============================================ */
+
+.preview-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.preview-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background-color: var(--gray-50);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gray-200);
+}
+
+.preview-stat-item i {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    width: 24px;
+    text-align: center;
+}
+
+.preview-stat-item div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.preview-summary {
+    margin-bottom: 20px;
+    padding: 18px;
+    background-color: var(--blue-50);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary-color);
+}
+
+.preview-summary h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-summary p {
+    margin-bottom: 6px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.preview-summary p:last-child {
+    margin-bottom: 0;
+}
+
+.preview-sample {
+    background-color: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.preview-sample h4 {
+    padding: 14px 18px;
+    background-color: var(--gray-50);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sample-table {
+    overflow-x: auto;
+}
+
+.sample-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.sample-table th {
+    background-color: var(--gray-100);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.sample-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.sample-table tr:last-child td {
+    border-bottom: none;
+}
+
+.sample-table tr:hover {
+    background-color: var(--gray-50);
+}
+
+.variation-cell.positive {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.variation-cell.negative {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+.more-indicator td {
+    font-style: italic;
+    color: var(--text-muted);
+    text-align: center;
+    background-color: var(--gray-50);
+}
+
+.error-message {
+    padding: 20px;
+    background-color: rgba(255, 61, 87, 0.1);
+    color: var(--danger-color);
+    border-radius: var(--radius-md);
+    text-align: center;
+    font-weight: 500;
+}
+
+/* ============================================ */
+/* AÇÕES DO MODAL */
+/* ============================================ */
+
+.export-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 14px;
+    padding: 24px 30px;
+    border-top: 1px solid var(--gray-200);
+    background-color: var(--gray-50);
+}
+
+.export-actions .btn {
+    min-width: 180px;
+    padding: 12px 20px;
+    font-weight: 600;
+}
+
+/* ============================================ */
+/* RESPONSIVE DESIGN */
+/* ============================================ */
+
+@media (max-width: 1024px) {
+    .consolidated-export-modal .modal-content {
+        width: 95vw;
+        max-height: 95vh;
+    }
+    
+    .export-period-selectors {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .export-options-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .comparison-mode-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .preview-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .export-section {
+        padding: 20px 24px;
+    }
+    
+    .export-period-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .export-actions {
+        flex-direction: column;
+        padding: 20px 24px;
+    }
+    
+    .export-actions .btn {
+        width: 100%;
+        min-width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .export-period-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .comparison-mode-btn {
+        padding: 16px;
+        min-height: 70px;
+    }
+    
+    .export-section {
+        padding: 16px 20px;
+    }
 }

@@ -34,7 +34,7 @@ let comparisonMode = {
     period2: null,
     entityFilter: 'total',
     minVariation: null,
-    maxResults: 250
+    maxResults: 'all'
 };
 
 // Sheet filter configurations
